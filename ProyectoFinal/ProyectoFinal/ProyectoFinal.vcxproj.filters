@@ -27,6 +27,9 @@
     <ClCompile Include="src\core\Grafo.cpp">
       <Filter>Núcleo</Filter>
     </ClCompile>
+    <ClCompile Include="src\core\Algoritmos.cpp">
+      <Filter>Núcleo</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\Recorrer.h">

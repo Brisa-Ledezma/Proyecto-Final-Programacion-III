@@ -104,6 +104,7 @@
   <ItemGroup>
     <ClCompile Include="ProyectoFinal.cpp" />
     <ClCompile Include="src\core\Grafo.cpp" />
+    <ClCompile Include="src\core\Algoritmos.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\Recorrer.h" />
