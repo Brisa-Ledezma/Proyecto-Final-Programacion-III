@@ -2,20 +2,21 @@
 
 // ============================================================
 //  PanelResultado.h
-//  Tarjeta de resultado: costo total, camino, orden de los
-//  obligatorios, costos desde el origen y (con Floyd-Warshall)
-//  la matriz de adyacencia y la de distancias mínimas.
+//  Tarjetas de resultado debajo del dibujo:
+//   - Resultado: costo total y camino
+//   - Detalle del recorrido: cada paso con su costo
+//   - Costo mínimo desde el origen a cada nodo
+//   - Matrices (solo con Floyd-Warshall)
 // ============================================================
 
 #include "core/Algoritmos.h"
 #include "core/Grafo.h"
 
-#include <QFrame>
+#include <QWidget>
 
 class QVBoxLayout;
-class QWidget;
 
-class PanelResultado : public QFrame {
+class PanelResultado : public QWidget {
 public:
     explicit PanelResultado(QWidget* parent = nullptr);
 
