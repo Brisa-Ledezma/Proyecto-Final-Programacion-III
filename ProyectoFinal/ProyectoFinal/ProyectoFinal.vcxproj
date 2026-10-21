@@ -103,6 +103,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ProyectoFinal.cpp" />
+    <ClCompile Include="src\core\Grafo.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\core\Recorrer.h" />
+    <ClInclude Include="src\core\Grafo.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="RutaQt.props" />
