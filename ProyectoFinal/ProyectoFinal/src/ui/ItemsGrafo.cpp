@@ -71,7 +71,7 @@ void NodoItem::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) {
     const double r = radio_;
 
     // Color del borde según el estado (misma lógica que el prototipo)
-    QColor borde = tema::apagado();
+    QColor borde = tema::tenue();
     double grosor = 2.0;
     if (enCamino_) { borde = tema::camino(); grosor = 3.0; }
     if (obligatorio_) { borde = tema::obligatorio(); grosor = 3.5; }
@@ -80,7 +80,7 @@ void NodoItem::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) {
     QPen pluma(borde, grosor);
     if (bloqueado_ || filtrado_) pluma.setStyle(Qt::DashLine);
     p->setPen(pluma);
-    p->setBrush(enCamino_ ? tema::caminoFondo() : tema::panel());
+    p->setBrush(enCamino_ ? tema::caminoFondo() : tema::campo());
     p->drawEllipse(QPointF(0, 0), r, r);
 
     // Nombre
@@ -169,20 +169,20 @@ void AristaItem::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) {
     p->setRenderHint(QPainter::Antialiasing, true);
     const bool enCamino = sentido_ != 0;
 
-    QColor color = tema::apagado();
+    QColor color = tema::tenue();
     if (enCamino) color = tema::camino();
     if (bloqueada_) color = tema::bloqueado();
 
     // Brillo suave detrás del camino
     if (enCamino) {
         QColor brillo = tema::camino();
-        brillo.setAlpha(55);
+        brillo.setAlpha(70);
         p->setPen(QPen(brillo, 10, Qt::SolidLine, Qt::RoundCap));
         p->setBrush(Qt::NoBrush);
         p->drawPath(curva_);
     }
 
-    QPen pluma(color, enCamino ? 3.5 : 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen pluma(color, enCamino ? 3.5 : 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     if (bloqueada_) pluma.setStyle(Qt::DashLine);
     p->setPen(pluma);
     p->setBrush(Qt::NoBrush);
@@ -226,7 +226,7 @@ void EtiquetaItem::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*)
     if (bloqueada_) color = tema::bloqueado();
 
     p->setPen(QPen(enCamino_ ? tema::camino() : tema::linea(), 1));
-    p->setBrush(enCamino_ ? tema::caminoFondo() : tema::panel());
+    p->setBrush(enCamino_ ? tema::caminoFondo() : tema::fondo());
     p->drawRoundedRect(caja_, 7, 7);
 
     QFont f = fuente(12, enCamino_);

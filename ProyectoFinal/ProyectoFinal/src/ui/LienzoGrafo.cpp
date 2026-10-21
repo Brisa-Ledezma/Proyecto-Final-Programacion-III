@@ -8,6 +8,8 @@
 #include <QGraphicsScene>
 #include <QGraphicsSimpleTextItem>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPixmap>
 #include <QTimer>
 #include <QWheelEvent>
 #include <climits>
@@ -46,6 +48,18 @@ QPolygonF flecha(QPointF punta, QPointF desde) {
 
 QString formatoNumero(double v) { return QString::number(v, 'g', 6); }
 
+// Baldosa de 26x26 con un punto: repetida, forma una grilla sutil (sin bucles).
+QPixmap fondoPunteado() {
+    QPixmap baldosa(26, 26);
+    baldosa.fill(tema::panel());
+    QPainter p(&baldosa);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setPen(Qt::NoPen);
+    p.setBrush(tema::linea());
+    p.drawEllipse(QPointF(13, 13), 1.2, 1.2);
+    return baldosa;
+}
+
 } // namespace
 
 // ============================================================
@@ -60,7 +74,7 @@ LienzoGrafo::LienzoGrafo(grafos::Grafo* grafo, QWidget* parent)
     setDragMode(QGraphicsView::ScrollHandDrag);
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
-    setBackgroundBrush(tema::panel());
+    setBackgroundBrush(QBrush(fondoPunteado()));
     setMinimumSize(420, 300);
 
     temporizador_ = new QTimer(this);
@@ -412,7 +426,8 @@ void LienzoGrafo::wheelEvent(QWheelEvent* evento) {
         evento->accept();
         return;
     }
-    QGraphicsView::wheelEvent(evento);
+    evento->ignore(); // sin Ctrl, la rueda desplaza la página completa
+
 }
 
 void LienzoGrafo::contextMenuEvent(QContextMenuEvent* evento) {
