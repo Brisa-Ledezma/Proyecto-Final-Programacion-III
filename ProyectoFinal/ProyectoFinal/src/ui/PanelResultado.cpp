@@ -45,7 +45,7 @@ QTableWidget* tablaCompacta(int filas, int columnas) {
 
 void celda(QTableWidget* t, int fila, int columna, const QString& texto, bool resaltar) {
     auto* item = new QTableWidgetItem(texto);
-    item->setTextAlignment(Qt::AlignCenter);
+    item->setTextAlignment(Qt::Alignment(Qt::AlignCenter));
     if (resaltar) {
         item->setBackground(tema::caminoFondo());
         item->setForeground(tema::camino());
