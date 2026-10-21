@@ -56,6 +56,9 @@
     <ClInclude Include="src\core\Algoritmos.h">
       <Filter>Núcleo</Filter>
     </ClInclude>
+    <ClInclude Include="src\ui\Controles.h">
+      <Filter>Interfaz</Filter>
+    </ClInclude>
     <ClInclude Include="src\ui\Tema.h">
       <Filter>Interfaz</Filter>
     </ClInclude>
