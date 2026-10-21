@@ -14,7 +14,7 @@ namespace grafos {
 
 struct Nodo {
     std::string nombre;
-    double peso = 0.0;        // se suma cada vez que el camino ENTRA al nodo
+    int peso = 0;             // entero; se suma cada vez que el camino ENTRA al nodo
     bool bloqueado = false;   // el camino no puede pasar por acá
     bool obligatorio = false; // el camino tiene que pasar por acá
     double x = 0.0;           // posición en el dibujo
@@ -24,8 +24,8 @@ struct Nodo {
 struct Arista {
     int desde = -1;
     int hasta = -1;
-    double pesoIda = 1.0;     // desde -> hasta
-    double pesoVuelta = 1.0;  // hasta -> desde (solo si NO es dirigida)
+    int pesoIda = 1;          // desde -> hasta (entero)
+    int pesoVuelta = 1;       // hasta -> desde (solo si NO es dirigida)
     bool dirigida = false;
     bool bloqueada = false;
 };
@@ -51,12 +51,12 @@ public:
     std::string validarNombre(const std::string& nombre) const;
     // Primer nombre libre de la serie A, B, ..., Z, AA, AB, ...
     std::string siguienteNombreLibre() const;
-    int agregarNodo(const std::string& nombre, double peso, double x, double y);
+    int agregarNodo(const std::string& nombre, int peso, double x, double y);
     void eliminarNodo(int indice);
 
     // ---- aristas ----
     std::string validarArista(int desde, int hasta, bool dirigida) const;
-    int agregarArista(int desde, int hasta, double pesoIda, double pesoVuelta, bool dirigida);
+    int agregarArista(int desde, int hasta, int pesoIda, int pesoVuelta, bool dirigida);
     void eliminarArista(int indice);
     // Texto para mostrar: "A — B" o "A → B"
     std::string describirArista(int indice) const;

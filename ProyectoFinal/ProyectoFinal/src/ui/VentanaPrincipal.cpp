@@ -43,7 +43,7 @@ QLabel* pista(const QString& texto) {
 QDoubleSpinBox* crearSpin(double valor) {
     auto* s = new QDoubleSpinBox;
     s->setRange(-1000000.0, 1000000.0);
-    s->setDecimals(2);
+    s->setDecimals(0); // solo enteros
     s->setValue(valor);
     s->setMinimumWidth(70);
     return s;
@@ -384,7 +384,7 @@ void VentanaPrincipal::refrescarTablaNodos() {
 
         auto* peso = spinDeTabla(nodo.peso);
         connect(peso, &QDoubleSpinBox::valueChanged, this, [this, i](double v) {
-            grafo_.nodo(i).peso = v;
+            grafo_.nodo(i).peso = static_cast<int>(v);
             lienzo_->reconstruir();
             cambio();
         });
@@ -432,8 +432,8 @@ void VentanaPrincipal::refrescarTablaAristas() {
         auto* ida = spinDeTabla(e.pesoIda);
         connect(ida, &QDoubleSpinBox::valueChanged, this, [this, k](double v) {
             grafos::Arista& a = grafo_.arista(k);
-            a.pesoIda = v;
-            if (a.dirigida) a.pesoVuelta = v;
+            a.pesoIda = static_cast<int>(v);
+            if (a.dirigida) a.pesoVuelta = a.pesoIda;
             lienzo_->reconstruir();
             cambio();
         });
@@ -444,7 +444,7 @@ void VentanaPrincipal::refrescarTablaAristas() {
         } else {
             auto* vuelta = spinDeTabla(e.pesoVuelta);
             connect(vuelta, &QDoubleSpinBox::valueChanged, this, [this, k](double v) {
-                grafo_.arista(k).pesoVuelta = v;
+                grafo_.arista(k).pesoVuelta = static_cast<int>(v);
                 lienzo_->reconstruir();
                 cambio();
             });
@@ -497,7 +497,7 @@ void VentanaPrincipal::agregarNodo(QPointF posicion, bool posicionElegida) {
     const double radio = radioParaNombre(aQString(nombre));
     const QPointF deseada = posicionElegida ? posicion : lienzo_->centroVisible();
     const QPointF libre = lienzo_->posicionLibre(deseada, radio, -1); // nunca encima de otro nodo
-    grafo_.agregarNodo(nombre, pesoNodo_->value(), libre.x(), libre.y());
+    grafo_.agregarNodo(nombre, static_cast<int>(pesoNodo_->value()), libre.x(), libre.y());
     nombreNodo_->clear();
     refrescarTodo();
 }
@@ -511,7 +511,7 @@ void VentanaPrincipal::agregarArista() {
         QMessageBox::warning(this, QStringLiteral("No se puede agregar la arista"), aQString(error));
         return;
     }
-    grafo_.agregarArista(a, b, pesoIda_->value(), pesoVuelta_->value(), dirigida);
+    grafo_.agregarArista(a, b, static_cast<int>(pesoIda_->value()), static_cast<int>(pesoVuelta_->value()), dirigida);
     refrescarTodo();
 }
 
