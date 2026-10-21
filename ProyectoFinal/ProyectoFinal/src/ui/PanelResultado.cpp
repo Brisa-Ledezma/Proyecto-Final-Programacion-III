@@ -3,6 +3,9 @@
 #include "core/Recorrer.h"
 
 #include <QAbstractItemView>
+#include <QFrame>
+#include <QGridLayout>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QTableWidget>
@@ -13,15 +16,14 @@ using grafos::recorrer;
 namespace {
 
 const int MAXIMO_NODOS_EN_MATRIZ = 60; // solo limita lo que se MUESTRA, no el grafo
+const int CHIPS_POR_FILA = 7;
 
 QString nombreDe(const grafos::Grafo& g, int i) { return QString::fromStdString(g.nodo(i).nombre); }
 
 QString formato(double v) {
     if (!(v < grafos::INFINITO)) return QStringLiteral("∞"); // ∞
-    return QString::number(v, 'g', 6);
+    return QString::number(v, 'g', 10);
 }
-
-QString escapar(const QString& s) { return s.toHtmlEscaped(); }
 
 QLabel* etiqueta(const QString& texto, const char* nombreObjeto) {
     auto* l = new QLabel(texto);
@@ -31,21 +33,37 @@ QLabel* etiqueta(const QString& texto, const char* nombreObjeto) {
     return l;
 }
 
+// Tarjeta con título (y subtítulo opcional). Devuelve el layout interno.
+QVBoxLayout* agregarTarjeta(QVBoxLayout* destino, const QString& titulo, const QString& subtitulo) {
+    auto* marco = new QFrame;
+    marco->setObjectName(QStringLiteral("tarjeta"));
+    auto* capa = new QVBoxLayout(marco);
+    capa->setContentsMargins(22, 18, 22, 20);
+    capa->setSpacing(10);
+    if (!titulo.isEmpty()) capa->addWidget(etiqueta(titulo, "tituloTarjeta"));
+    if (!subtitulo.isEmpty()) capa->addWidget(etiqueta(subtitulo, "pista"));
+    destino->addWidget(marco);
+    return capa;
+}
+
 QTableWidget* tablaCompacta(int filas, int columnas) {
     auto* t = new QTableWidget(filas, columnas);
     t->setEditTriggers(QAbstractItemView::NoEditTriggers);
     t->setSelectionMode(QAbstractItemView::NoSelection);
     t->setFocusPolicy(Qt::NoFocus);
+    t->setShowGrid(false);
     t->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    t->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    t->horizontalHeader()->setMinimumSectionSize(54);
+    t->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    t->verticalHeader()->setDefaultSectionSize(36);
     t->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     t->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     return t;
 }
 
-void celda(QTableWidget* t, int fila, int columna, const QString& texto, bool resaltar) {
+void celda(QTableWidget* t, int fila, int columna, const QString& texto, bool resaltar, bool centrar) {
     auto* item = new QTableWidgetItem(texto);
-    item->setTextAlignment(Qt::Alignment(Qt::AlignCenter));
+    item->setTextAlignment(centrar ? Qt::Alignment(Qt::AlignCenter) : (Qt::AlignVCenter | Qt::AlignLeft));
     if (resaltar) {
         item->setBackground(tema::caminoFondo());
         item->setForeground(tema::camino());
@@ -53,12 +71,11 @@ void celda(QTableWidget* t, int fila, int columna, const QString& texto, bool re
     t->setItem(fila, columna, item);
 }
 
-// Alto justo para que la tabla no necesite barra vertical.
+// Alto justo para mostrar todas las filas: la página entera es la que hace scroll.
 void ajustarAlto(QTableWidget* t) {
-    t->resizeRowsToContents();
     int alto = t->horizontalHeader()->isVisible() ? t->horizontalHeader()->sizeHint().height() : 0;
-    recorrer(0, t->rowCount(), [&](int f) { alto += t->rowHeight(f); });
-    t->setFixedHeight(alto + 2 * t->frameWidth() + 18); // + espacio para la barra horizontal
+    alto += t->verticalHeader()->defaultSectionSize() * t->rowCount();
+    t->setFixedHeight(alto + 2 * t->frameWidth() + 14); // + lugar para la barra horizontal
 }
 
 QTableWidget* tablaMatriz(const grafos::Grafo& g, const std::vector<std::vector<double>>& m,
@@ -70,12 +87,73 @@ QTableWidget* tablaMatriz(const grafos::Grafo& g, const std::vector<std::vector<
     t->setHorizontalHeaderLabels(encabezados);
     t->setVerticalHeaderLabels(encabezados);
 
-    // Celdas que corresponden a pasos del camino (para resaltarlas)
     std::vector<std::vector<bool>> enCamino(n, std::vector<bool>(n, false));
     recorrer(0, static_cast<int>(camino.size()) - 1, [&](int i) { enCamino[camino[i]][camino[i + 1]] = true; });
 
     recorrer(0, n, [&](int i) {
-        recorrer(0, n, [&](int j) { celda(t, i, j, formato(m[i][j]), enCamino[i][j]); });
+        recorrer(0, n, [&](int j) { celda(t, i, j, formato(m[i][j]), enCamino[i][j], true); });
+    });
+    ajustarAlto(t);
+    return t;
+}
+
+// Camino como "chips" en filas de CHIPS_POR_FILA: A → B → C ...
+QWidget* chipsDelCamino(const grafos::Grafo& g, const std::vector<int>& camino) {
+    auto* contenedor = new QWidget;
+    auto* grilla = new QGridLayout(contenedor);
+    grilla->setContentsMargins(0, 4, 0, 4);
+    grilla->setHorizontalSpacing(8);
+    grilla->setVerticalSpacing(10);
+    const int total = static_cast<int>(camino.size());
+    recorrer(0, total, [&](int i) {
+        const int fila = i / CHIPS_POR_FILA;
+        const int columna = (i % CHIPS_POR_FILA) * 2;
+        QLabel* chip = etiqueta(nombreDe(g, camino[i]), "chip");
+        chip->setWordWrap(false);
+        grilla->addWidget(chip, fila, columna);
+        if (i + 1 < total) {
+            QLabel* flecha = etiqueta(QStringLiteral("→"), "flechaChip");
+            flecha->setWordWrap(false);
+            grilla->addWidget(flecha, fila, columna + 1);
+        }
+    });
+    grilla->setColumnStretch(CHIPS_POR_FILA * 2, 1);
+    return contenedor;
+}
+
+// Una fila por paso: tramo, peso de la arista, peso del nodo, costo y acumulado.
+QTableWidget* tablaDetalle(const grafos::Grafo& g, const grafos::Resultado& r) {
+    const int pasos = static_cast<int>(r.camino.size()) - 1;
+    auto* t = tablaCompacta(pasos, 7);
+    t->setHorizontalHeaderLabels({QStringLiteral("PASO"), QStringLiteral("TRAMO"), QStringLiteral("PESO ARISTA"),
+                                  QStringLiteral("PESO NODO"), QStringLiteral("COSTO DEL PASO"),
+                                  QStringLiteral("ACUMULADO"), QStringLiteral("NOTA")});
+    t->verticalHeader()->hide();
+    t->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    t->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
+
+    int acumulado = 0;
+    recorrer(0, pasos, [&](int i) {
+        const int u = r.camino[i];
+        const int v = r.camino[i + 1];
+        const int k = r.aristasCamino[i];
+        const grafos::Arista& e = g.arista(k);
+        const int pesoArista = (e.desde == u) ? e.pesoIda : e.pesoVuelta;
+        const int pesoNodo = g.nodo(v).peso;
+        const int costoPaso = pesoArista + pesoNodo;
+        acumulado += costoPaso;
+
+        QString nota;
+        if (v == r.destino && i == pasos - 1) nota = QStringLiteral("llegada al destino");
+        else if (g.nodo(v).obligatorio) nota = QStringLiteral("pasa por un obligatorio");
+
+        celda(t, i, 0, QString::number(i + 1), false, true);
+        celda(t, i, 1, nombreDe(g, u) + QStringLiteral("  →  ") + nombreDe(g, v), false, false);
+        celda(t, i, 2, QString::number(pesoArista), false, true);
+        celda(t, i, 3, QString::number(pesoNodo), false, true);
+        celda(t, i, 4, QString::number(costoPaso), false, true);
+        celda(t, i, 5, QString::number(acumulado), true, true);
+        celda(t, i, 6, nota, false, false);
     });
     ajustarAlto(t);
     return t;
@@ -83,10 +161,10 @@ QTableWidget* tablaMatriz(const grafos::Grafo& g, const std::vector<std::vector<
 
 } // namespace
 
-PanelResultado::PanelResultado(QWidget* parent) : QFrame(parent) {
-    setObjectName(QStringLiteral("tarjeta"));
+// ============================================================
+PanelResultado::PanelResultado(QWidget* parent) : QWidget(parent) {
     disposicion_ = new QVBoxLayout(this);
-    disposicion_->setContentsMargins(14, 14, 14, 14);
+    disposicion_->setContentsMargins(0, 0, 0, 0);
     mostrarVacio();
 }
 
@@ -95,19 +173,19 @@ QVBoxLayout* PanelResultado::nuevoContenido() {
     contenido_ = new QWidget(this);
     auto* capa = new QVBoxLayout(contenido_);
     capa->setContentsMargins(0, 0, 0, 0);
-    capa->setSpacing(6);
+    capa->setSpacing(16);
     disposicion_->addWidget(contenido_);
     return capa;
 }
 
 void PanelResultado::mostrarVacio() {
-    auto* capa = nuevoContenido();
-    capa->addWidget(etiqueta(QStringLiteral("Agregá nodos y aristas, o cargá el ejemplo, y calculá el camino."), "pista"));
+    auto* tarjeta = agregarTarjeta(nuevoContenido(), QStringLiteral("Resultado"), QString());
+    tarjeta->addWidget(etiqueta(QStringLiteral("Agregá nodos y aristas, o cargá el ejemplo, y tocá «Calcular camino»."), "pista"));
 }
 
 void PanelResultado::mostrarError(const QString& mensaje) {
-    auto* capa = nuevoContenido();
-    capa->addWidget(etiqueta(mensaje, "error"));
+    auto* tarjeta = agregarTarjeta(nuevoContenido(), QStringLiteral("Resultado"), QString());
+    tarjeta->addWidget(etiqueta(mensaje, "error"));
 }
 
 void PanelResultado::mostrar(const grafos::Grafo& g, const grafos::Resultado& r) {
@@ -115,61 +193,73 @@ void PanelResultado::mostrar(const grafos::Grafo& g, const grafos::Resultado& r)
         mostrarError(QString::fromStdString(r.error));
         return;
     }
-    auto* capa = nuevoContenido();
+    QVBoxLayout* capa = nuevoContenido();
     const QString algoritmo = QString::fromStdString(grafos::nombreAlgoritmo(r.algoritmo));
+    const int pasos = static_cast<int>(r.camino.size()) - 1;
 
-    // Costo total
-    capa->addWidget(etiqueta(formato(r.costo), "costo"));
-    capa->addWidget(etiqueta(QStringLiteral("costo total · ") + algoritmo, "pista"));
-
-    // Camino como "chips"
-    QStringList chips;
-    recorrer(0, static_cast<int>(r.camino.size()), [&](int i) {
-        chips << QStringLiteral("<span style=\"background-color:#d9f0ee;\">&nbsp;%1&nbsp;</span>")
-                     .arg(escapar(nombreDe(g, r.camino[i])));
-    });
-    auto* camino = etiqueta(chips.join(QStringLiteral(" &rarr; ")), "camino");
-    camino->setTextFormat(Qt::RichText);
-    capa->addWidget(camino);
-    capa->addWidget(etiqueta(QStringLiteral("%1 pasos").arg(static_cast<int>(r.camino.size()) - 1), "pista"));
-
+    // ---------- Resultado ----------
+    QVBoxLayout* resumen = agregarTarjeta(capa, QStringLiteral("Resultado"), QString());
+    auto* filaCosto = new QHBoxLayout;
+    filaCosto->setSpacing(14);
+    filaCosto->addWidget(etiqueta(formato(r.costo), "costo"));
+    auto* datos = new QVBoxLayout;
+    datos->setSpacing(2);
+    datos->addStretch(1);
+    datos->addWidget(etiqueta(QStringLiteral("costo total"), "rotulo"));
+    datos->addWidget(etiqueta(algoritmo + QStringLiteral(" · ") + QString::number(pasos) +
+                                  (pasos == 1 ? QStringLiteral(" paso") : QStringLiteral(" pasos")), "pista"));
+    filaCosto->addLayout(datos);
+    filaCosto->addStretch(1);
+    resumen->addLayout(filaCosto);
+    resumen->addWidget(etiqueta(QStringLiteral("CAMINO"), "rotulo"));
+    resumen->addWidget(chipsDelCamino(g, r.camino));
     if (!r.ordenObligatorios.empty()) {
         QStringList orden;
         recorrer(0, static_cast<int>(r.ordenObligatorios.size()),
                  [&](int i) { orden << nombreDe(g, r.ordenObligatorios[i]); });
-        capa->addWidget(etiqueta(QStringLiteral("Orden de paso por los obligatorios: ") + orden.join(", "), "pista"));
+        resumen->addWidget(etiqueta(QStringLiteral("Orden de paso por los obligatorios: ") + orden.join(QStringLiteral(", ")), "pista"));
     }
 
-    // Costo mínimo desde el origen a cada nodo
+    // ---------- Detalle del recorrido ----------
+    if (pasos > 0) {
+        QVBoxLayout* detalle = agregarTarjeta(capa, QStringLiteral("Detalle del recorrido"),
+            QStringLiteral("Costo de cada paso = peso de la arista en ese sentido + peso del nodo al que se entra."));
+        detalle->addWidget(tablaDetalle(g, r));
+    } else {
+        QVBoxLayout* detalle = agregarTarjeta(capa, QStringLiteral("Detalle del recorrido"), QString());
+        detalle->addWidget(etiqueta(QStringLiteral("El origen y el destino son el mismo nodo: no hay pasos."), "pista"));
+    }
+
+    // ---------- Costo mínimo desde el origen ----------
     const int n = g.cantidadNodos();
-    capa->addSpacing(8);
-    capa->addWidget(etiqueta(QStringLiteral("Costo mínimo desde ") + nombreDe(g, r.origen), "tituloTarjeta"));
-    auto* distancias = tablaCompacta(1, n);
+    QVBoxLayout* distancias = agregarTarjeta(capa, QStringLiteral("Costo mínimo desde ") + nombreDe(g, r.origen),
+        QStringLiteral("— = nodo bloqueado o filtrado  ·  ∞ = inalcanzable"));
+    auto* tabla = tablaCompacta(1, n);
     QStringList encabezados;
     recorrer(0, n, [&](int i) {
         encabezados << nombreDe(g, i);
         const bool fuera = i < static_cast<int>(r.excluido.size()) && r.excluido[i];
-        celda(distancias, 0, i, fuera ? QStringLiteral("—") : formato(r.distDesdeOrigen[i]), i == r.destino);
+        celda(tabla, 0, i, fuera ? QStringLiteral("—") : formato(r.distDesdeOrigen[i]), i == r.destino, true);
     });
-    distancias->setHorizontalHeaderLabels(encabezados);
-    distancias->verticalHeader()->hide();
-    ajustarAlto(distancias);
-    capa->addWidget(distancias);
-    capa->addWidget(etiqueta(QStringLiteral("— = nodo bloqueado o filtrado · ∞ = inalcanzable"), "pista"));
+    tabla->setHorizontalHeaderLabels(encabezados);
+    tabla->verticalHeader()->hide();
+    ajustarAlto(tabla);
+    distancias->addWidget(tabla);
 
-    // Matrices (solo Floyd-Warshall)
+    // ---------- Matrices (solo Floyd-Warshall) ----------
     if (r.algoritmo == grafos::Algoritmo::Floyd) {
-        capa->addSpacing(8);
         if (n > MAXIMO_NODOS_EN_MATRIZ) {
-            capa->addWidget(etiqueta(QStringLiteral("Las matrices tienen %1 × %1 celdas: son demasiado grandes para mostrarlas, "
-                                                    "pero el cálculo se hizo igual.").arg(n), "pista"));
+            QVBoxLayout* m = agregarTarjeta(capa, QStringLiteral("Matrices"), QString());
+            m->addWidget(etiqueta(QStringLiteral("Las matrices tienen %1 × %1 celdas: son demasiado grandes para "
+                                                 "mostrarlas, pero el cálculo se hizo igual.").arg(n), "pista"));
         } else {
-            capa->addWidget(etiqueta(QStringLiteral("Matriz de adyacencia (incluye el peso del nodo al que se entra)"), "tituloTarjeta"));
-            capa->addWidget(tablaMatriz(g, r.matrizAdyacencia, r.camino));
-            capa->addSpacing(8);
-            capa->addWidget(etiqueta(QStringLiteral("Matriz de distancias mínimas (después de Floyd-Warshall)"), "tituloTarjeta"));
-            capa->addWidget(tablaMatriz(g, r.matrizDistancias, std::vector<int>()));
+            QVBoxLayout* a = agregarTarjeta(capa, QStringLiteral("Matriz de adyacencia"),
+                QStringLiteral("Costo del arco directo fila → columna (incluye el peso del nodo al que se entra). "
+                               "En rosa, los arcos que usa el camino."));
+            a->addWidget(tablaMatriz(g, r.matrizAdyacencia, r.camino));
+            QVBoxLayout* d = agregarTarjeta(capa, QStringLiteral("Matriz de distancias mínimas"),
+                QStringLiteral("Resultado de Floyd-Warshall: costo mínimo entre cada par de nodos."));
+            d->addWidget(tablaMatriz(g, r.matrizDistancias, std::vector<int>()));
         }
     }
-    capa->addStretch(1);
 }
