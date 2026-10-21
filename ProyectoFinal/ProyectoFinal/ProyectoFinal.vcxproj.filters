@@ -16,11 +16,19 @@
     <Filter Include="Configuración">
       <UniqueIdentifier>{C3E91B05-7A2D-4F68-9E14-5B0D8C2F6A77}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Núcleo">
+      <UniqueIdentifier>{2D5B8E61-3C1A-4E7B-9F0A-6A1C3B9E7D21}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ProyectoFinal.cpp">
       <Filter>Archivos de origen</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\core\Recorrer.h">
+      <Filter>Núcleo</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="RutaQt.props">
