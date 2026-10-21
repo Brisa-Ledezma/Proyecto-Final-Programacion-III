@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Caminos en grafos</title>
+<style>
+:root{--bg:#eef1f4;--panel:#fff;--ink:#1d2733;--mute:#6b7885;--line:#d3dae1;--path:#0b7a75;--pathbg:#d9f0ee;--must:#b86e00;--bad:#b3261e;--btn:#1d2733;--btnink:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171c;--panel:#1b222a;--ink:#e6ebf0;--mute:#8d9aa7;--line:#2f3943;--path:#4fd1c5;--pathbg:#173a3a;--must:#f0a640;--bad:#ff7b72;--btn:#e6ebf0;--btnink:#12171c}}
+:root[data-theme="dark"]{--bg:#12171c;--panel:#1b222a;--ink:#e6ebf0;--mute:#8d9aa7;--line:#2f3943;--path:#4fd1c5;--pathbg:#173a3a;--must:#f0a640;--bad:#ff7b72;--btn:#e6ebf0;--btnink:#12171c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
+header{padding:18px 20px 4px;max-width:1200px;margin:auto}
+h1{font-size:22px;margin:0 0 2px;letter-spacing:-.01em}
+header p{margin:0;color:var(--mute)}
+main{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:16px;max-width:1200px;margin:auto;padding:12px 20px 28px}
+@media(max-width:820px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+h2{font-size:15px;margin:0 0 10px}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+input,select,button{font:inherit;color:inherit}
+input[type=text],input[type=number],select{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:0}
+input[type=number]{width:72px}
+input[type=text]{flex:1;min-width:80px}
+button{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 12px;cursor:pointer}
+button.main{background:var(--btn);color:var(--btnink);border-color:var(--btn);font-weight:600}
+button.x{padding:2px 8px;color:var(--mute)}
+:focus-visible{outline:2px solid var(--path);outline-offset:2px}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-weight:400}
+th{color:var(--mute);font-size:13px}
+td input[type=number]{width:60px}
+.hint{color:var(--mute);font-size:13px;margin:6px 0 0}
+.scroll{overflow-x:auto}
+svg{width:100%;height:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;touch-action:none;display:block}
+.cost{font-size:30px;font-weight:700;color:var(--path);line-height:1.1}
+.err{color:var(--bad);font-weight:600}
+.path span{display:inline-block;background:var(--pathbg);border-radius:5px;padding:1px 8px;margin:2px 0}
+.m td,.m th{text-align:center;padding:3px 8px}
+</style>
+</head>
+<body>
+<header>
+<h1>Caminos en grafos</h1>
+<p>Cargá nodos, aristas y restricciones, y elegí con qué algoritmo resolver.</p>
+</header>
+<main>
+<aside>
+<div class="card">
+<h2>Nodos</h2>
+<div class="row"><input type="text" id="nn" placeholder="Nombre" aria-label="Nombre del nodo"><input type="number" id="nw" value="0" step="any" aria-label="Peso del nodo"><button onclick="addNode()">Agregar</button></div>
+<div class="scroll"><table><thead><tr><th>Nodo</th><th>Peso</th><th>Prohibido</th><th>Obligatorio</th><th></th></tr></thead><tbody id="nl"></tbody></table></div>
+<p class="hint">El peso del nodo se suma cada vez que el camino entra en él (el origen no cuenta).</p>
+</div>
+<div class="card">
+<h2>Aristas</h2>
+<div class="row"><select id="ea" aria-label="Desde"></select><select id="eb" aria-label="Hasta"></select><input type="number" id="ew" value="1" step="any" aria-label="Peso de la arista"><select id="ed" aria-label="Tipo"><option value="0">No dirigida</option><option value="1">Dirigida</option></select><button onclick="addEdge()">Agregar</button></div>
+<div class="scroll"><table><thead><tr><th>Arista</th><th>Peso</th><th>Tipo</th><th>Prohibida</th><th></th></tr></thead><tbody id="el"></tbody></table></div>
+</div>
+<div class="card">
+<h2>Resolver</h2>
+<div class="row"><label>Origen <select id="o" onchange="changed()"></select></label><label>Destino <select id="d" onchange="changed()"></select></label></div>
+<div class="row"><label>Algoritmo <select id="alg" onchange="changed()"><option value="dij">Dijkstra</option><option value="bf">Bellman-Ford</option><option value="mat">Matriz de adyacencia (Floyd-Warshall)</option></select></label></div>
+<div class="row"><button class="main" onclick="run()">Calcular camino</button><button onclick="demo()">Cargar ejemplo</button><button onclick="clearAll()">Vaciar</button></div>
+<p class="hint">Los nodos obligatorios se visitan en el orden que dé menor costo (hasta 7). Arrastrá los nodos del dibujo para acomodarlos.</p>
+</div>
+</aside>
+<section>
+<svg id="g" viewBox="0 0 640 420" role="img" aria-label="Dibujo del grafo"></svg>
+<div class="card" id="res" style="margin-top:14px"><span style="color:var(--mute)">Agregá nodos y aristas, o cargá el ejemplo, y calculá el camino.</span></div>
+</section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+let S={nodes:[],edges:[]},pos={},res=null,ran=false,drag=null;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>n===Infinity?'∞':(Number.isInteger(n)?n:+n.toFixed(3));
+
+function circle(){const n=S.nodes.length;S.nodes.forEach((x,i)=>{const a=2*Math.PI*i/n-Math.PI/2;pos[x.id]={x:320+230*Math.cos(a),y:210+150*Math.sin(a)}})}
+function addNode(){const id=$('#nn').value.trim();if(!id)return;if(S.nodes.some(n=>n.id===id)){alert('Ya existe un nodo con ese nombre.');return}
+S.nodes.push({id,w:parseFloat($('#nw').value)||0,forbid:false,must:false});$('#nn').value='';circle();changed()}
+function addEdge(){const a=$('#ea').value,b=$('#eb').value;if(!a||!b)return;if(a===b){alert('Elegí dos nodos distintos.');return}
+S.edges.push({a,b,w:parseFloat($('#ew').value)||0,dir:$('#ed').value==='1',forbid:false});changed()}
+function delNode(i){const id=S.nodes[i].id;S.nodes.splice(i,1);S.edges=S.edges.filter(e=>e.a!==id&&e.b!==id);circle();changed()}
+function delEdge(i){S.edges.splice(i,1);changed()}
+function clearAll(){S={nodes:[],edges:[]};pos={};ran=false;res=null;render()}
+function demo(){
+S.nodes=[['A',0],['B',2],['C',1],['D',3],['E',1],['F',0]].map(([id,w])=>({id,w,forbid:false,must:false}));
+S.edges=[['A','B',4],['A','C',2],['C','B',1],['B','D',5],['C','D',8],['C','E',10],['D','E',2],['D','F',6],['E','F',3]].map(([a,b,w])=>({a,b,w,dir:false,forbid:false}));
+circle();render();$('#o').value='A';$('#d').value='F';run()}
+function changed(){res=null;if(ran)run();else render()}
+
+function fill(el,keep){const v=keep??el.value;el.innerHTML=S.nodes.map(n=>`<option>${esc(n.id)}</option>`).join('');if(S.nodes.some(n=>n.id===v))el.value=v}
+function render(){
+['#o','#d','#ea','#eb'].forEach(s=>fill($(s)));
+if(S.nodes.length>1&&$('#o').value===$('#d').value&&!ran)$('#d').selectedIndex=S.nodes.length-1;
+$('#nl').innerHTML=S.nodes.map((n,i)=>`<tr><td>${esc(n.id)}</td><td><input type="number" step="any" value="${n.w}" onchange="S.nodes[${i}].w=parseFloat(this.value)||0;changed()" aria-label="Peso de ${esc(n.id)}"></td><td><input type="checkbox" ${n.forbid?'checked':''} onchange="S.nodes[${i}].forbid=this.checked;changed()" aria-label="Prohibir ${esc(n.id)}"></td><td><input type="checkbox" ${n.must?'checked':''} onchange="S.nodes[${i}].must=this.checked;changed()" aria-label="Obligar ${esc(n.id)}"></td><td><button class="x" onclick="delNode(${i})" aria-label="Quitar ${esc(n.id)}">✕</button></td></tr>`).join('');
+$('#el').innerHTML=S.edges.map((e,i)=>`<tr><td>${esc(e.a)} ${e.dir?'→':'—'} ${esc(e.b)}</td><td><input type="number" step="any" value="${e.w}" onchange="S.edges[${i}].w=parseFloat(this.value)||0;changed()" aria-label="Peso de la arista"></td><td><select onchange="S.edges[${i}].dir=this.value==='1';changed()"><option value="0" ${e.dir?'':'selected'}>No dir.</option><option value="1" ${e.dir?'selected':''}>Dirigida</option></select></td><td><input type="checkbox" ${e.forbid?'checked':''} onchange="S.edges[${i}].forbid=this.checked;changed()" aria-label="Prohibir arista"></td><td><button class="x" onclick="delEdge(${i})" aria-label="Quitar arista">✕</button></td></tr>`).join('');
+draw();showRes()}
+
+function draw(){
+const R=20,P=new Set();if(res&&res.path)for(let i=0;i<res.path.length-1;i++){P.add(res.path[i]+'|'+res.path[i+1]);P.add(res.path[i+1]+'|'+res.path[i])}
+let h='<defs>'+[['a','var(--mute)'],['p','var(--path)'],['x','var(--bad)']].map(([k,c])=>`<marker id="m${k}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:${c}"/></marker>`).join('')+'</defs>';
+S.edges.forEach(e=>{const a=pos[e.a],b=pos[e.b];if(!a||!b)return;const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
+const on=P.has(e.a+'|'+e.b)&&!e.forbid,k=e.forbid?'x':on?'p':'a',col=e.forbid?'var(--bad)':on?'var(--path)':'var(--mute)';
+h+=`<line x1="${a.x+ux*R}" y1="${a.y+uy*R}" x2="${b.x-ux*(R+(e.dir?3:0))}" y2="${b.y-uy*(R+(e.dir?3:0))}" stroke="${col}" stroke-width="${on?3.5:1.6}" ${e.forbid?'stroke-dasharray="5 4"':''} ${e.dir?`marker-end="url(#m${k})"`:''}/>`;
+h+=`<text x="${(a.x+b.x)/2-uy*10}" y="${(a.y+b.y)/2+ux*10+4}" text-anchor="middle" font-size="12" style="fill:${col};paint-order:stroke;stroke:var(--panel);stroke-width:3px">${fmt(e.w)}</text>`});
+const inP=new Set(res&&res.path||[]);
+S.nodes.forEach(n=>{const p=pos[n.id];if(!p)return;const on=inP.has(n.id),st=n.forbid?'var(--bad)':n.must?'var(--must)':on?'var(--path)':'var(--mute)';
+h+=`<g data-n="${esc(n.id)}" style="cursor:grab" transform="translate(${p.x} ${p.y})"><circle r="${R}" style="fill:${on?'var(--pathbg)':'var(--panel)'};stroke:${st}" stroke-width="${n.must||n.forbid?3.5:2}" ${n.forbid?'stroke-dasharray="4 3"':''}/><text text-anchor="middle" y="5" font-size="15" font-weight="600" style="fill:var(--ink);pointer-events:none">${esc(n.id)}</text>${n.w?`<text text-anchor="middle" y="${R+14}" font-size="11" style="fill:var(--mute);pointer-events:none">+${fmt(n.w)}</text>`:''}${n.id===$('#o').value?`<text text-anchor="middle" y="${-R-6}" font-size="11" style="fill:var(--path);pointer-events:none">origen</text>`:n.id===$('#d').value?`<text text-anchor="middle" y="${-R-6}" font-size="11" style="fill:var(--path);pointer-events:none">destino</text>`:''}</g>`});
+$('#g').innerHTML=h}
+const svg=$('#g');
+function pt(ev){const q=svg.createSVGPoint();q.x=ev.clientX;q.y=ev.clientY;return q.matrixTransform(svg.getScreenCTM().inverse())}
+svg.addEventListener('pointerdown',ev=>{const g=ev.target.closest('[data-n]');if(g){drag=g.dataset.n;svg.setPointerCapture(ev.pointerId)}});
+svg.addEventListener('pointermove',ev=>{if(!drag)return;const q=pt(ev);pos[drag]={x:Math.max(25,Math.min(615,q.x)),y:Math.max(25,Math.min(395,q.y))};draw()});
+svg.addEventListener('pointerup',()=>drag=null);
+
+/* ---------- algoritmos ---------- */
+function dijkstra(src,names,E){const dist={},prev={},done=new Set();names.forEach(k=>dist[k]=Infinity);dist[src]=0;
+for(;;){let u=null;names.forEach(k=>{if(!done.has(k)&&dist[k]<Infinity&&(u===null||dist[k]<dist[u]))u=k});if(u===null)break;done.add(u);
+E.forEach(e=>{if(e.u===u&&dist[u]+e.c<dist[e.v]){dist[e.v]=dist[u]+e.c;prev[e.v]=u}})}
+return{dist,prev}}
+function bellman(src,names,E){const dist={},prev={};names.forEach(k=>dist[k]=Infinity);dist[src]=0;
+for(let i=1;i<names.length;i++){let ch=false;E.forEach(e=>{if(dist[e.u]<Infinity&&dist[e.u]+e.c<dist[e.v]){dist[e.v]=dist[e.u]+e.c;prev[e.v]=e.u;ch=true}});if(!ch)break}
+E.forEach(e=>{if(dist[e.u]<Infinity&&dist[e.u]+e.c<dist[e.v])throw Error('Hay un ciclo de peso negativo alcanzable desde "'+src+'": no existe camino mínimo.')});
+return{dist,prev}}
+function floyd(names,E){const n=names.length,ix={};names.forEach((k,i)=>ix[k]=i);
+const D=names.map((_,i)=>names.map((_,j)=>i===j?0:Infinity)),P=names.map(()=>names.map(()=>-1));
+E.forEach(e=>{const i=ix[e.u],j=ix[e.v];if(e.c<D[i][j]){D[i][j]=e.c;P[i][j]=i}});const A=D.map(r=>r.slice());
+for(let k=0;k<n;k++)for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(D[i][k]+D[k][j]<D[i][j]){D[i][j]=D[i][k]+D[k][j];P[i][j]=P[k][j]}
+for(let i=0;i<n;i++)if(D[i][i]<0)throw Error('Hay un ciclo de peso negativo: no existe camino mínimo.');
+return{A,D,P,ix}}
+function tree(alg,src,names,E,F){if(alg==='dij')return dijkstra(src,names,E);if(alg==='bf')return bellman(src,names,E);
+const i=F.ix[src],dist={},prev={};names.forEach((k,j)=>{dist[k]=F.D[i][j];if(F.P[i][j]>=0)prev[k]=names[F.P[i][j]]});return{dist,prev}}
+function pathTo(t,s,v){const p=[v];while(v!==s){v=t.prev[v];p.push(v)}return p.reverse()}
+const perms=a=>a.length<2?[a]:a.flatMap((x,i)=>perms([...a.slice(0,i),...a.slice(i+1)]).map(p=>[x,...p]));
+
+function solve(){
+const o=$('#o').value,d=$('#d').value,alg=$('#alg').value;
+if(!o||!d)throw Error('Elegí un origen y un destino.');
+const names=S.nodes.map(n=>n.id),W={},bad=new Set();S.nodes.forEach(n=>{W[n.id]=n.w;if(n.forbid)bad.add(n.id)});
+const musts=S.nodes.filter(n=>n.must&&n.id!==o&&n.id!==d).map(n=>n.id);
+[o,d,...musts].forEach(k=>{if(bad.has(k))throw Error('"'+k+'" está prohibido pero es origen, destino u obligatorio.')});
+if(musts.length>7)throw Error('Hay más de 7 nodos obligatorios.');
+const E=[];S.edges.forEach(e=>{if(e.forbid||bad.has(e.a)||bad.has(e.b))return;E.push({u:e.a,v:e.b,c:e.w+W[e.b]});if(!e.dir)E.push({u:e.b,v:e.a,c:e.w+W[e.a]})});
+if(alg==='dij'&&E.some(e=>e.c<0))throw Error('Dijkstra no admite pesos negativos (hay una arista o un nodo con costo negativo). Probá con Bellman-Ford.');
+const F=alg==='mat'?floyd(names,E):null,T={};[o,...musts].forEach(p=>T[p]=tree(alg,p,names,E,F));
+let best=null;perms(musts).forEach(pm=>{const sq=[o,...pm,d];let c=0;for(let i=0;i<sq.length-1;i++)c+=T[sq[i]].dist[sq[i+1]];if(!best||c<best.c)best={c,sq}});
+if(!best||best.c===Infinity)throw Error('No hay un camino que cumpla las restricciones.');
+const path=[o];for(let i=0;i<best.sq.length-1;i++)path.push(...pathTo(T[best.sq[i]],best.sq[i],best.sq[i+1]).slice(1));
+return{cost:best.c,path,sq:best.sq,musts,dist:T[o].dist,alg,F,names,o}}
+function run(){ran=true;try{res=solve()}catch(e){res={err:e.message}}render()}
+
+function showRes(){const el=$('#res');if(!res){el.innerHTML='<span style="color:var(--mute)">Agregá nodos y aristas, o cargá el ejemplo, y calculá el camino.</span>';return}
+if(res.err){el.innerHTML=`<div class="err">${esc(res.err)}</div>`;return}
+const nm={dij:'Dijkstra',bf:'Bellman-Ford',mat:'Matriz de adyacencia (Floyd-Warshall)'}[res.alg];
+let h=`<div class="cost">${fmt(res.cost)}</div><div style="color:var(--mute)">costo total · ${nm}</div><p class="path">${res.path.map(k=>`<span>${esc(k)}</span>`).join(' → ')}</p>`;
+if(res.musts.length)h+=`<p class="hint">Orden de paso por los obligatorios: ${res.sq.slice(1,-1).map(esc).join(', ')}</p>`;
+h+=`<h2>Costo mínimo desde ${esc(res.o)}</h2><div class="scroll"><table class="m"><tr>${res.names.map(k=>`<th>${esc(k)}</th>`).join('')}</tr><tr>${res.names.map(k=>`<td>${fmt(res.dist[k])}</td>`).join('')}</tr></table></div>`;
+if(res.alg==='mat'){h+=`<h2 style="margin-top:12px">Matriz de adyacencia (costo de entrar a cada nodo incluido)</h2><div class="scroll"><table class="m"><tr><th></th>${res.names.map(k=>`<th>${esc(k)}</th>`).join('')}</tr>${res.F.A.map((r,i)=>`<tr><th>${esc(res.names[i])}</th>${r.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>`).join('')}</table></div>`}
+el.innerHTML=h}
+render();
+</script>
+</body>
+</html>
