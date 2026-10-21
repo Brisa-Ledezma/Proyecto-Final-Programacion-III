@@ -207,4 +207,31 @@ void Grafo::limpiar() {
     aristas_.clear();
 }
 
+void Grafo::cargarEjemplo(int& origenSugerido, int& destinoSugerido) {
+    limpiar();
+    //            nombre peso    x     y
+    agregarNodo("A", 0, 90, 240);   // #1
+    agregarNodo("B", 1, 260, 100);  // #2
+    agregarNodo("C", 0, 260, 380);  // #3
+    agregarNodo("D", 2, 450, 100);  // #4
+    agregarNodo("E", 1, 450, 380);  // #5
+    agregarNodo("F", 0, 630, 170);  // #6
+    agregarNodo("G", 0, 790, 300);  // #7
+
+    //            desde hasta ida vuelta dirigida
+    agregarArista(0, 1, 2, 2, false); // A — B
+    agregarArista(0, 2, 4, 3, false); // A — C (ida y vuelta distintas)
+    agregarArista(1, 2, 1, 1, false); // B — C
+    agregarArista(1, 3, 3, 3, true);  // B → D
+    agregarArista(2, 4, 6, 5, false); // C — E
+    agregarArista(3, 4, 2, 2, false); // D — E
+    agregarArista(3, 5, 2, 3, false); // D — F
+    agregarArista(4, 5, 4, 4, false); // E — F
+    agregarArista(5, 6, 1, 1, false); // F — G
+    agregarArista(4, 6, 7, 7, true);  // E → G
+
+    origenSugerido = 0;  // A
+    destinoSugerido = 6; // G
+}
+
 } // namespace grafos

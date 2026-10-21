@@ -63,6 +63,8 @@ public:
 
     // ---- general ----
     void limpiar();
+    // Grafo precargado de ejemplo. Devuelve origen y destino sugeridos.
+    void cargarEjemplo(int& origenSugerido, int& destinoSugerido);
 
     static const int LARGO_MAXIMO_NOMBRE = 8;
 
