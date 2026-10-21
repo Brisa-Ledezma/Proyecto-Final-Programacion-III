@@ -1,15 +1,16 @@
 #include "VentanaPrincipal.h"
+#include "Controles.h"
 #include "ItemsGrafo.h"
 #include "LienzoGrafo.h"
 #include "PanelResultado.h"
+#include "Tema.h"
 #include "core/Recorrer.h"
 
 #include <QAbstractItemView>
 #include <QAction>
 #include <QCheckBox>
-#include <QComboBox>
-#include <QDoubleSpinBox>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -21,7 +22,6 @@
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
 #include <QSignalBlocker>
-#include <QSplitter>
 #include <QTableWidget>
 #include <QTimer>
 #include <QToolButton>
@@ -31,28 +31,37 @@ using grafos::recorrer;
 
 namespace {
 
+const int ANCHO_COLUMNA_IZQUIERDA = 440;
+const int ALTO_LIENZO = 440;
+const int ALTO_FILA_TABLA = 44;
+
 QString aQString(const std::string& s) { return QString::fromStdString(s); }
 
+QLabel* conNombre(QLabel* l, const char* nombreObjeto) {
+    l->setObjectName(QString::fromLatin1(nombreObjeto));
+    return l;
+}
+
 QLabel* pista(const QString& texto) {
-    auto* l = new QLabel(texto);
-    l->setObjectName(QStringLiteral("pista"));
+    auto* l = conNombre(new QLabel(texto), "pista");
     l->setWordWrap(true);
     return l;
 }
 
-QDoubleSpinBox* crearSpin(double valor) {
-    auto* s = new QDoubleSpinBox;
-    s->setRange(-1000000.0, 1000000.0);
-    s->setDecimals(0); // solo enteros
+QLabel* rotulo(const QString& texto) { return conNombre(new QLabel(texto), "rotulo"); }
+
+QSpinBox* crearSpin(int valor) {
+    auto* s = new SpinSinRueda;
     s->setValue(valor);
-    s->setMinimumWidth(70);
+    s->setMinimumWidth(80);
     return s;
 }
 
-QDoubleSpinBox* spinDeTabla(double valor) {
-    auto* s = crearSpin(valor);
-    s->setButtonSymbols(QAbstractSpinBox::NoButtons);
-    s->setMinimumWidth(60);
+QSpinBox* spinDeTabla(int valor) {
+    auto* s = new SpinSinRueda;
+    s->setObjectName(QStringLiteral("enTabla"));
+    s->setValue(valor);
+    s->setFixedWidth(76);
     return s;
 }
 
@@ -69,28 +78,40 @@ QTableWidget* crearTabla(const QStringList& columnas, int columnaElastica) {
     auto* t = new QTableWidget(0, static_cast<int>(columnas.size()));
     t->setHorizontalHeaderLabels(columnas);
     t->verticalHeader()->hide();
+    t->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    t->verticalHeader()->setDefaultSectionSize(ALTO_FILA_TABLA);
     t->setShowGrid(false);
     t->setEditTriggers(QAbstractItemView::NoEditTriggers);
     t->setSelectionMode(QAbstractItemView::NoSelection);
     t->setFocusPolicy(Qt::NoFocus);
+    t->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // la página es la que hace scroll
+    t->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     t->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     t->horizontalHeader()->setSectionResizeMode(columnaElastica, QHeaderView::Stretch);
-    t->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    t->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     return t;
 }
 
-// La tabla crece con sus filas hasta un máximo; después aparece la barra.
+// Alto exacto para mostrar todas las filas, sin barra interna.
 void ajustarAltoTabla(QTableWidget* t) {
-    const int fila = 34;
-    const int alto = t->horizontalHeader()->sizeHint().height() + fila * t->rowCount() + 6;
-    t->setFixedHeight(alto < 260 ? alto : 260);
-    recorrer(0, t->rowCount(), [&](int f) { t->setRowHeight(f, fila); });
+    const int alto = t->horizontalHeader()->sizeHint().height() + ALTO_FILA_TABLA * t->rowCount() + 4;
+    t->setFixedHeight(alto);
+    t->setVisible(t->rowCount() > 0);
 }
 
 QTableWidgetItem* itemTexto(const QString& texto) {
     auto* i = new QTableWidgetItem(texto);
     i->setTextAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     return i;
+}
+
+QToolButton* botonQuitar(const QString& ayuda) {
+    auto* b = new QToolButton;
+    b->setObjectName(QStringLiteral("quitar"));
+    b->setText(QStringLiteral("✕"));
+    b->setToolTip(ayuda);
+    b->setCursor(Qt::PointingHandCursor);
+    return b;
 }
 
 // Rellena un combo con los nombres de los nodos, conservando la selección si se puede.
@@ -119,114 +140,136 @@ QFrame* VentanaPrincipal::tarjeta(const QString& titulo, QVBoxLayout*& contenido
     auto* marco = new QFrame;
     marco->setObjectName(QStringLiteral("tarjeta"));
     contenido = new QVBoxLayout(marco);
-    contenido->setContentsMargins(14, 12, 14, 14);
-    contenido->setSpacing(8);
-    auto* t = new QLabel(titulo);
-    t->setObjectName(QStringLiteral("tituloTarjeta"));
-    contenido->addWidget(t);
+    contenido->setContentsMargins(22, 18, 22, 22);
+    contenido->setSpacing(14);
+    contenido->addWidget(conNombre(new QLabel(titulo), "tituloTarjeta"));
     return marco;
 }
 
 void VentanaPrincipal::construirInterfaz() {
-    auto* fondo = new QWidget;
-    fondo->setObjectName(QStringLiteral("fondo"));
-    auto* principal = new QVBoxLayout(fondo);
-    principal->setContentsMargins(20, 16, 20, 16);
-    principal->setSpacing(10);
+    // Toda la página va dentro de un único scroll
+    auto* pagina = new QWidget;
+    pagina->setObjectName(QStringLiteral("pagina"));
+    auto* principal = new QVBoxLayout(pagina);
+    principal->setContentsMargins(32, 26, 32, 32);
+    principal->setSpacing(22);
 
-    // Encabezado
-    auto* titulo = new QLabel(QStringLiteral("Caminos en grafos"));
-    titulo->setObjectName(QStringLiteral("titulo"));
-    auto* subtitulo = new QLabel(QStringLiteral("Cargá nodos, aristas y restricciones, y elegí con qué algoritmo resolver."));
-    subtitulo->setObjectName(QStringLiteral("subtitulo"));
-    principal->addWidget(titulo);
-    principal->addWidget(subtitulo);
+    // ---- Encabezado ----
+    auto* encabezado = new QVBoxLayout;
+    encabezado->setSpacing(4);
+    auto* filaTitulo = new QHBoxLayout;
+    filaTitulo->setSpacing(12);
+    filaTitulo->addWidget(conNombre(new QLabel(QStringLiteral("Caminos en grafos")), "titulo"));
+    filaTitulo->addWidget(conNombre(new QLabel(QStringLiteral("Programación III")), "etiquetaMateria"), 0, Qt::AlignVCenter);
+    filaTitulo->addStretch(1);
+    encabezado->addLayout(filaTitulo);
+    encabezado->addWidget(conNombre(new QLabel(QStringLiteral(
+        "Cargá nodos, aristas y restricciones, y elegí con qué algoritmo resolver.")), "subtitulo"));
+    principal->addLayout(encabezado);
 
+    // ---- Dos columnas ----
     auto* columnas = new QHBoxLayout;
-    columnas->setSpacing(16);
-    principal->addLayout(columnas, 1);
+    columnas->setSpacing(22);
 
-    // ---- Columna izquierda (tarjetas con scroll) ----
-    auto* contenidoIzquierdo = new QWidget;
-    contenidoIzquierdo->setObjectName(QStringLiteral("contenidoIzquierdo"));
-    auto* izquierda = new QVBoxLayout(contenidoIzquierdo);
-    izquierda->setContentsMargins(0, 0, 6, 0);
-    izquierda->setSpacing(14);
-    izquierda->addWidget(tarjetaNodos());
-    izquierda->addWidget(tarjetaAristas());
-    izquierda->addWidget(tarjetaFiltros());
-    izquierda->addWidget(tarjetaResolver());
-    izquierda->addStretch(1);
+    auto* izquierda = new QWidget;
+    izquierda->setFixedWidth(ANCHO_COLUMNA_IZQUIERDA);
+    auto* capaIzquierda = new QVBoxLayout(izquierda);
+    capaIzquierda->setContentsMargins(0, 0, 0, 0);
+    capaIzquierda->setSpacing(18);
+    capaIzquierda->addWidget(tarjetaNodos());
+    capaIzquierda->addWidget(tarjetaAristas());
+    capaIzquierda->addWidget(tarjetaFiltros());
+    capaIzquierda->addWidget(tarjetaResolver());
+    capaIzquierda->addStretch(1);
+    columnas->addWidget(izquierda, 0, Qt::AlignTop);
 
-    auto* scrollIzquierdo = new QScrollArea;
-    scrollIzquierdo->setObjectName(QStringLiteral("scrollIzquierdo"));
-    scrollIzquierdo->setWidget(contenidoIzquierdo);
-    scrollIzquierdo->setWidgetResizable(true);
-    scrollIzquierdo->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollIzquierdo->setFixedWidth(450);
-    columnas->addWidget(scrollIzquierdo);
-
-    // ---- Columna derecha: barra + lienzo + resultado ----
     auto* derecha = new QVBoxLayout;
-    derecha->setSpacing(8);
+    derecha->setSpacing(18);
+    derecha->addWidget(tarjetaLienzo());
+    resultado_ = new PanelResultado;
+    derecha->addWidget(resultado_);
+    derecha->addStretch(1);
+    columnas->addLayout(derecha, 1);
+
+    principal->addLayout(columnas);
+    principal->addStretch(1);
+
+    auto* scrollPagina = new QScrollArea;
+    scrollPagina->setObjectName(QStringLiteral("scrollPagina"));
+    scrollPagina->setWidget(pagina);
+    scrollPagina->setWidgetResizable(true);
+    scrollPagina->setFrameShape(QFrame::NoFrame);
+    setCentralWidget(scrollPagina);
+}
+
+QFrame* VentanaPrincipal::tarjetaLienzo() {
+    QVBoxLayout* c = nullptr;
+    QFrame* marco = tarjeta(QStringLiteral("Grafo"), c);
 
     auto* barra = new QHBoxLayout;
-    barra->addWidget(pista(QStringLiteral("Clic en el fondo: nuevo nodo · Arrastrar un nodo: moverlo · "
-                                          "Clic derecho: opciones · Ctrl + rueda: zoom")), 1);
-    auto* botonRepetir = new QPushButton(QStringLiteral("Ver recorrido de nuevo"));
+    barra->setSpacing(10);
+    barra->addWidget(pista(QStringLiteral("Clic en el fondo: nuevo nodo  ·  Arrastrar: mover  ·  "
+                                          "Clic derecho: opciones  ·  Ctrl + rueda: zoom")), 1);
+    auto* botonRepetir = new QPushButton(QStringLiteral("▶  Ver recorrido"));
     auto* botonAjustar = new QPushButton(QStringLiteral("Ajustar vista"));
     barra->addWidget(botonRepetir);
     barra->addWidget(botonAjustar);
-    derecha->addLayout(barra);
+    c->addLayout(barra);
 
     lienzo_ = new LienzoGrafo(&grafo_);
+    lienzo_->setFixedHeight(ALTO_LIENZO);
     lienzo_->alHacerClicEnVacio = [this](QPointF p) { agregarNodo(p, true); };
     lienzo_->alPedirMenuNodo = [this](int i, QPoint p) { menuNodo(i, p); };
     lienzo_->alPedirMenuArista = [this](int i, QPoint p) { menuArista(i, p); };
+    c->addWidget(lienzo_);
 
-    resultado_ = new PanelResultado;
-    auto* scrollResultado = new QScrollArea;
-    scrollResultado->setWidget(resultado_);
-    scrollResultado->setWidgetResizable(true);
-
-    auto* divisor = new QSplitter(Qt::Vertical);
-    divisor->addWidget(lienzo_);
-    divisor->addWidget(scrollResultado);
-    divisor->setStretchFactor(0, 3);
-    divisor->setStretchFactor(1, 2);
-    divisor->setChildrenCollapsible(false);
-    derecha->addWidget(divisor, 1);
-    columnas->addLayout(derecha, 1);
+    // Referencias de colores
+    auto* leyenda = new QHBoxLayout;
+    leyenda->setSpacing(18);
+    const auto punto = [](const QString& color, const QString& texto) {
+        auto* l = new QLabel(QStringLiteral("<span style=\"color:%1;\">●</span>&nbsp; %2").arg(color, texto));
+        l->setObjectName(QStringLiteral("pista"));
+        return l;
+    };
+    leyenda->addWidget(punto(tema::camino().name(), QStringLiteral("camino")));
+    leyenda->addWidget(punto(tema::obligatorio().name(), QStringLiteral("obligatorio")));
+    leyenda->addWidget(punto(tema::bloqueado().name(), QStringLiteral("bloqueado (línea punteada)")));
+    leyenda->addWidget(punto(tema::tenue().name(), QStringLiteral("filtrado (transparente)")));
+    leyenda->addStretch(1);
+    c->addLayout(leyenda);
 
     connect(botonRepetir, &QPushButton::clicked, this, [this]() { lienzo_->repetirAnimacion(); });
     connect(botonAjustar, &QPushButton::clicked, this, [this]() { lienzo_->ajustarVista(); });
-
-    setCentralWidget(fondo);
+    return marco;
 }
 
 QFrame* VentanaPrincipal::tarjetaNodos() {
     QVBoxLayout* c = nullptr;
     QFrame* marco = tarjeta(QStringLiteral("Nodos"), c);
 
-    auto* fila = new QHBoxLayout;
+    auto* formulario = new QGridLayout;
+    formulario->setHorizontalSpacing(10);
+    formulario->setVerticalSpacing(6);
     nombreNodo_ = new QLineEdit;
-    nombreNodo_->setPlaceholderText(QStringLiteral("Nombre (vacío = automático)"));
+    nombreNodo_->setPlaceholderText(QStringLiteral("Vacío = automático"));
     // Solo letras: los números se confundirían con el peso o el número del nodo
     nombreNodo_->setValidator(new QRegularExpressionValidator(
         QRegularExpression(QStringLiteral("\\p{L}{0,%1}").arg(grafos::Grafo::LARGO_MAXIMO_NOMBRE)), nombreNodo_));
-    pesoNodo_ = crearSpin(0.0);
-    pesoNodo_->setToolTip(QStringLiteral("Peso del nodo"));
+    pesoNodo_ = crearSpin(0);
     auto* agregar = new QPushButton(QStringLiteral("Agregar"));
-    fila->addWidget(nombreNodo_, 1);
-    fila->addWidget(new QLabel(QStringLiteral("Peso")));
-    fila->addWidget(pesoNodo_);
-    fila->addWidget(agregar);
-    c->addLayout(fila);
+    agregar->setObjectName(QStringLiteral("principal"));
+    formulario->addWidget(rotulo(QStringLiteral("NOMBRE")), 0, 0);
+    formulario->addWidget(rotulo(QStringLiteral("PESO")), 0, 1);
+    formulario->addWidget(nombreNodo_, 1, 0);
+    formulario->addWidget(pesoNodo_, 1, 1);
+    formulario->addWidget(agregar, 1, 2);
+    formulario->setColumnStretch(0, 1);
+    c->addLayout(formulario);
 
-    tablaNodos_ = crearTabla({QStringLiteral("#"), QStringLiteral("Nodo"), QStringLiteral("Peso"),
-                              QStringLiteral("Bloq."), QStringLiteral("Oblig."), QString()}, 1);
+    tablaNodos_ = crearTabla({QStringLiteral("#"), QStringLiteral("NODO"), QStringLiteral("PESO"),
+                              QStringLiteral("BLOQ."), QStringLiteral("OBLIG."), QString()}, 1);
     c->addWidget(tablaNodos_);
-    c->addWidget(pista(QStringLiteral("El peso del nodo se suma cada vez que el camino entra en él (el origen no cuenta). "
+    c->addWidget(pista(QStringLiteral("El peso (entero) se suma cada vez que el camino entra al nodo; el origen no cuenta. "
                                       "El nombre solo admite letras. El # es el número que usan los filtros par/impar.")));
 
     connect(agregar, &QPushButton::clicked, this, [this]() { agregarNodo(QPointF(), false); });
@@ -238,45 +281,50 @@ QFrame* VentanaPrincipal::tarjetaAristas() {
     QVBoxLayout* c = nullptr;
     QFrame* marco = tarjeta(QStringLiteral("Aristas"), c);
 
-    auto* fila1 = new QHBoxLayout;
-    desde_ = new QComboBox;
-    hasta_ = new QComboBox;
-    tipoArista_ = new QComboBox;
+    auto* formulario = new QGridLayout;
+    formulario->setHorizontalSpacing(10);
+    formulario->setVerticalSpacing(6);
+    desde_ = new ComboSinRueda;
+    hasta_ = new ComboSinRueda;
+    tipoArista_ = new ComboSinRueda;
     tipoArista_->addItem(QStringLiteral("No dirigida"));
     tipoArista_->addItem(QStringLiteral("Dirigida"));
-    fila1->addWidget(new QLabel(QStringLiteral("De")));
-    fila1->addWidget(desde_, 1);
-    fila1->addWidget(new QLabel(QStringLiteral("a")));
-    fila1->addWidget(hasta_, 1);
-    fila1->addWidget(tipoArista_, 1);
-    c->addLayout(fila1);
+    formulario->addWidget(rotulo(QStringLiteral("DESDE")), 0, 0);
+    formulario->addWidget(rotulo(QStringLiteral("HASTA")), 0, 1);
+    formulario->addWidget(rotulo(QStringLiteral("TIPO")), 0, 2);
+    formulario->addWidget(desde_, 1, 0);
+    formulario->addWidget(hasta_, 1, 1);
+    formulario->addWidget(tipoArista_, 1, 2);
 
-    auto* fila2 = new QHBoxLayout;
-    etiquetaIda_ = new QLabel(QStringLiteral("Ida"));
-    etiquetaVuelta_ = new QLabel(QStringLiteral("Vuelta"));
-    pesoIda_ = crearSpin(1.0);
-    pesoVuelta_ = crearSpin(1.0);
+    etiquetaIda_ = rotulo(QStringLiteral("PESO IDA"));
+    etiquetaVuelta_ = rotulo(QStringLiteral("PESO VUELTA"));
+    pesoIda_ = crearSpin(1);
+    pesoVuelta_ = crearSpin(1);
     auto* agregar = new QPushButton(QStringLiteral("Agregar"));
-    fila2->addWidget(etiquetaIda_);
-    fila2->addWidget(pesoIda_);
-    fila2->addWidget(etiquetaVuelta_);
-    fila2->addWidget(pesoVuelta_);
-    fila2->addStretch(1);
-    fila2->addWidget(agregar);
-    c->addLayout(fila2);
+    agregar->setObjectName(QStringLiteral("principal"));
+    formulario->addWidget(etiquetaIda_, 2, 0);
+    formulario->addWidget(etiquetaVuelta_, 2, 1);
+    formulario->addWidget(pesoIda_, 3, 0);
+    formulario->addWidget(pesoVuelta_, 3, 1);
+    formulario->addWidget(agregar, 3, 2);
+    formulario->setRowMinimumHeight(2, 26);
+    formulario->setColumnStretch(0, 1);
+    formulario->setColumnStretch(1, 1);
+    formulario->setColumnStretch(2, 1);
+    c->addLayout(formulario);
 
-    tablaAristas_ = crearTabla({QStringLiteral("Arista"), QStringLiteral("Ida"), QStringLiteral("Vuelta"),
-                                QStringLiteral("Tipo"), QStringLiteral("Bloq."), QString()}, 0);
+    tablaAristas_ = crearTabla({QStringLiteral("ARISTA"), QStringLiteral("IDA"), QStringLiteral("VUELTA"),
+                                QStringLiteral("TIPO"), QStringLiteral("BLOQ."), QString()}, 0);
     c->addWidget(tablaAristas_);
-    c->addWidget(pista(QStringLiteral("Dirigida: un solo peso. No dirigida: peso de ida (De → a) y de vuelta (a → De). "
-                                      "En el dibujo se ve como «ida ⇄ vuelta» cuando son distintos.")));
+    c->addWidget(pista(QStringLiteral("Dirigida: un solo peso. No dirigida: peso de ida (desde → hasta) y de vuelta "
+                                      "(hasta → desde). En el dibujo se ve «ida ⇄ vuelta» cuando son distintos.")));
 
     // Si es dirigida, el peso de vuelta no aplica
     connect(tipoArista_, &QComboBox::currentIndexChanged, this, [this](int indice) {
         const bool dirigida = indice == 1;
         pesoVuelta_->setEnabled(!dirigida);
         etiquetaVuelta_->setEnabled(!dirigida);
-        etiquetaIda_->setText(dirigida ? QStringLiteral("Peso") : QStringLiteral("Ida"));
+        etiquetaIda_->setText(dirigida ? QStringLiteral("PESO") : QStringLiteral("PESO IDA"));
     });
     connect(agregar, &QPushButton::clicked, this, [this]() { agregarArista(); });
     return marco;
@@ -285,8 +333,8 @@ QFrame* VentanaPrincipal::tarjetaAristas() {
 QFrame* VentanaPrincipal::tarjetaFiltros() {
     QVBoxLayout* c = nullptr;
     QFrame* marco = tarjeta(QStringLiteral("Filtros"), c);
-    evitarPares_ = new QCheckBox(QStringLiteral("Evitar nodos pares (#2, #4, #6…)"));
-    evitarImpares_ = new QCheckBox(QStringLiteral("Evitar nodos impares (#1, #3, #5…)"));
+    evitarPares_ = new QCheckBox(QStringLiteral("Evitar nodos pares  (#2, #4, #6…)"));
+    evitarImpares_ = new QCheckBox(QStringLiteral("Evitar nodos impares  (#1, #3, #5…)"));
     c->addWidget(evitarPares_);
     c->addWidget(evitarImpares_);
     c->addWidget(pista(QStringLiteral("Para evitar un nodo o una arista puntual, tildá «Bloq.» en su tabla "
@@ -305,37 +353,43 @@ QFrame* VentanaPrincipal::tarjetaResolver() {
     QVBoxLayout* c = nullptr;
     QFrame* marco = tarjeta(QStringLiteral("Resolver"), c);
 
-    auto* fila1 = new QHBoxLayout;
-    origen_ = new QComboBox;
-    destino_ = new QComboBox;
-    fila1->addWidget(new QLabel(QStringLiteral("Origen")));
-    fila1->addWidget(origen_, 1);
-    fila1->addWidget(new QLabel(QStringLiteral("Destino")));
-    fila1->addWidget(destino_, 1);
-    c->addLayout(fila1);
-
-    auto* fila2 = new QHBoxLayout;
-    algoritmo_ = new QComboBox;
+    auto* formulario = new QGridLayout;
+    formulario->setHorizontalSpacing(10);
+    formulario->setVerticalSpacing(6);
+    origen_ = new ComboSinRueda;
+    destino_ = new ComboSinRueda;
+    algoritmo_ = new ComboSinRueda;
     algoritmo_->addItem(QStringLiteral("Dijkstra"));
     algoritmo_->addItem(QStringLiteral("Bellman-Ford"));
     algoritmo_->addItem(QStringLiteral("Matriz de adyacencia (Floyd-Warshall)"));
-    fila2->addWidget(new QLabel(QStringLiteral("Algoritmo")));
-    fila2->addWidget(algoritmo_, 1);
-    c->addLayout(fila2);
+    formulario->addWidget(rotulo(QStringLiteral("ORIGEN")), 0, 0);
+    formulario->addWidget(rotulo(QStringLiteral("DESTINO")), 0, 1);
+    formulario->addWidget(origen_, 1, 0);
+    formulario->addWidget(destino_, 1, 1);
+    formulario->addWidget(rotulo(QStringLiteral("ALGORITMO")), 2, 0, 1, 2);
+    formulario->addWidget(algoritmo_, 3, 0, 1, 2);
+    formulario->setRowMinimumHeight(2, 26);
+    formulario->setColumnStretch(0, 1);
+    formulario->setColumnStretch(1, 1);
+    c->addLayout(formulario);
 
     animar_ = new QCheckBox(QStringLiteral("Mostrar el recorrido paso a paso"));
     animar_->setChecked(true);
     c->addWidget(animar_);
 
-    auto* fila3 = new QHBoxLayout;
     auto* calcularBoton = new QPushButton(QStringLiteral("Calcular camino"));
     calcularBoton->setObjectName(QStringLiteral("principal"));
+    calcularBoton->setMinimumHeight(40);
+    c->addWidget(calcularBoton);
+
+    auto* fila = new QHBoxLayout;
+    fila->setSpacing(10);
     auto* ejemplo = new QPushButton(QStringLiteral("Cargar ejemplo"));
     auto* limpiar = new QPushButton(QStringLiteral("Limpiar todo"));
-    fila3->addWidget(calcularBoton);
-    fila3->addWidget(ejemplo);
-    fila3->addWidget(limpiar);
-    c->addLayout(fila3);
+    limpiar->setObjectName(QStringLiteral("peligro"));
+    fila->addWidget(ejemplo, 1);
+    fila->addWidget(limpiar, 1);
+    c->addLayout(fila);
     c->addWidget(pista(QStringLiteral("Los nodos obligatorios se visitan en el orden que dé menor costo (hasta %1).")
                            .arg(grafos::MAXIMO_OBLIGATORIOS)));
 
@@ -383,12 +437,12 @@ void VentanaPrincipal::refrescarTablaNodos() {
         tablaNodos_->setItem(i, 1, itemTexto(aQString(nodo.nombre)));
 
         auto* peso = spinDeTabla(nodo.peso);
-        connect(peso, &QDoubleSpinBox::valueChanged, this, [this, i](double v) {
-            grafo_.nodo(i).peso = static_cast<int>(v);
+        connect(peso, &QSpinBox::valueChanged, this, [this, i](int v) {
+            grafo_.nodo(i).peso = v;
             lienzo_->reconstruir();
             cambio();
         });
-        tablaNodos_->setCellWidget(i, 2, peso);
+        tablaNodos_->setCellWidget(i, 2, centrado(peso));
 
         auto* bloqueado = new QCheckBox;
         bloqueado->setChecked(nodo.bloqueado);
@@ -408,15 +462,12 @@ void VentanaPrincipal::refrescarTablaNodos() {
         });
         tablaNodos_->setCellWidget(i, 4, centrado(obligatorio));
 
-        auto* quitar = new QToolButton;
-        quitar->setObjectName(QStringLiteral("quitar"));
-        quitar->setText(QStringLiteral("✕"));
-        quitar->setToolTip(QStringLiteral("Quitar nodo"));
+        auto* quitar = botonQuitar(QStringLiteral("Quitar nodo"));
         // Diferido: no se puede borrar la tabla mientras se procesa el clic de su botón
         connect(quitar, &QToolButton::clicked, this, [this, i]() {
             QTimer::singleShot(0, this, [this, i]() { eliminarNodo(i); });
         });
-        tablaNodos_->setCellWidget(i, 5, quitar);
+        tablaNodos_->setCellWidget(i, 5, centrado(quitar));
     });
     ajustarAltoTabla(tablaNodos_);
 }
@@ -430,25 +481,28 @@ void VentanaPrincipal::refrescarTablaAristas() {
         tablaAristas_->setItem(k, 0, itemTexto(aQString(grafo_.describirArista(k))));
 
         auto* ida = spinDeTabla(e.pesoIda);
-        connect(ida, &QDoubleSpinBox::valueChanged, this, [this, k](double v) {
+        connect(ida, &QSpinBox::valueChanged, this, [this, k](int v) {
             grafos::Arista& a = grafo_.arista(k);
-            a.pesoIda = static_cast<int>(v);
-            if (a.dirigida) a.pesoVuelta = a.pesoIda;
+            a.pesoIda = v;
+            if (a.dirigida) a.pesoVuelta = v;
             lienzo_->reconstruir();
             cambio();
         });
-        tablaAristas_->setCellWidget(k, 1, ida);
+        tablaAristas_->setCellWidget(k, 1, centrado(ida));
 
         if (e.dirigida) {
-            tablaAristas_->setItem(k, 2, itemTexto(QStringLiteral("—")));
+            auto* guion = itemTexto(QStringLiteral("—"));
+            guion->setTextAlignment(Qt::Alignment(Qt::AlignCenter));
+            guion->setForeground(tema::tenue());
+            tablaAristas_->setItem(k, 2, guion);
         } else {
             auto* vuelta = spinDeTabla(e.pesoVuelta);
-            connect(vuelta, &QDoubleSpinBox::valueChanged, this, [this, k](double v) {
-                grafo_.arista(k).pesoVuelta = static_cast<int>(v);
+            connect(vuelta, &QSpinBox::valueChanged, this, [this, k](int v) {
+                grafo_.arista(k).pesoVuelta = v;
                 lienzo_->reconstruir();
                 cambio();
             });
-            tablaAristas_->setCellWidget(k, 2, vuelta);
+            tablaAristas_->setCellWidget(k, 2, centrado(vuelta));
         }
 
         tablaAristas_->setItem(k, 3, itemTexto(e.dirigida ? QStringLiteral("Dirigida") : QStringLiteral("No dirigida")));
@@ -462,14 +516,11 @@ void VentanaPrincipal::refrescarTablaAristas() {
         });
         tablaAristas_->setCellWidget(k, 4, centrado(bloqueada));
 
-        auto* quitar = new QToolButton;
-        quitar->setObjectName(QStringLiteral("quitar"));
-        quitar->setText(QStringLiteral("✕"));
-        quitar->setToolTip(QStringLiteral("Quitar arista"));
+        auto* quitar = botonQuitar(QStringLiteral("Quitar arista"));
         connect(quitar, &QToolButton::clicked, this, [this, k]() {
             QTimer::singleShot(0, this, [this, k]() { eliminarArista(k); });
         });
-        tablaAristas_->setCellWidget(k, 5, quitar);
+        tablaAristas_->setCellWidget(k, 5, centrado(quitar));
     });
     ajustarAltoTabla(tablaAristas_);
 }
@@ -497,7 +548,7 @@ void VentanaPrincipal::agregarNodo(QPointF posicion, bool posicionElegida) {
     const double radio = radioParaNombre(aQString(nombre));
     const QPointF deseada = posicionElegida ? posicion : lienzo_->centroVisible();
     const QPointF libre = lienzo_->posicionLibre(deseada, radio, -1); // nunca encima de otro nodo
-    grafo_.agregarNodo(nombre, static_cast<int>(pesoNodo_->value()), libre.x(), libre.y());
+    grafo_.agregarNodo(nombre, pesoNodo_->value(), libre.x(), libre.y());
     nombreNodo_->clear();
     refrescarTodo();
 }
@@ -511,7 +562,7 @@ void VentanaPrincipal::agregarArista() {
         QMessageBox::warning(this, QStringLiteral("No se puede agregar la arista"), aQString(error));
         return;
     }
-    grafo_.agregarArista(a, b, static_cast<int>(pesoIda_->value()), static_cast<int>(pesoVuelta_->value()), dirigida);
+    grafo_.agregarArista(a, b, pesoIda_->value(), pesoVuelta_->value(), dirigida);
     refrescarTodo();
 }
 

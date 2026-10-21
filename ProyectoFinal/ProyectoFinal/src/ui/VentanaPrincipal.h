@@ -2,9 +2,9 @@
 
 // ============================================================
 //  VentanaPrincipal.h
-//  Ventana con el mismo esquema que el prototipo HTML:
+//  Página con scroll general y dos columnas:
 //  izquierda -> tarjetas Nodos, Aristas, Filtros y Resolver
-//  derecha   -> dibujo del grafo y tarjeta de resultado
+//  derecha   -> dibujo del grafo y tarjetas de resultado
 // ============================================================
 
 #include "core/Algoritmos.h"
@@ -15,12 +15,13 @@
 
 class QCheckBox;
 class QComboBox;
-class QDoubleSpinBox;
+class QSpinBox;
 class QFrame;
 class QLabel;
 class QLineEdit;
 class QTableWidget;
 class QVBoxLayout;
+class QWidget;
 class LienzoGrafo;
 class PanelResultado;
 
@@ -34,14 +35,14 @@ private:
 
     // Nodos
     QLineEdit* nombreNodo_ = nullptr;
-    QDoubleSpinBox* pesoNodo_ = nullptr;
+    QSpinBox* pesoNodo_ = nullptr;
     QTableWidget* tablaNodos_ = nullptr;
     // Aristas
     QComboBox* desde_ = nullptr;
     QComboBox* hasta_ = nullptr;
     QComboBox* tipoArista_ = nullptr;
-    QDoubleSpinBox* pesoIda_ = nullptr;
-    QDoubleSpinBox* pesoVuelta_ = nullptr;
+    QSpinBox* pesoIda_ = nullptr;
+    QSpinBox* pesoVuelta_ = nullptr;
     QLabel* etiquetaIda_ = nullptr;
     QLabel* etiquetaVuelta_ = nullptr;
     QTableWidget* tablaAristas_ = nullptr;
@@ -64,6 +65,7 @@ private:
     QFrame* tarjetaAristas();
     QFrame* tarjetaFiltros();
     QFrame* tarjetaResolver();
+    QFrame* tarjetaLienzo();
 
     // ---- refresco ----
     void refrescarTodo();
