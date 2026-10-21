@@ -114,6 +114,7 @@
     <ClInclude Include="src\core\Recorrer.h" />
     <ClInclude Include="src\core\Grafo.h" />
     <ClInclude Include="src\core\Algoritmos.h" />
+    <ClInclude Include="src\ui\Controles.h" />
     <ClInclude Include="src\ui\Tema.h" />
     <ClInclude Include="src\ui\ItemsGrafo.h" />
     <ClInclude Include="src\ui\LienzoGrafo.h" />
