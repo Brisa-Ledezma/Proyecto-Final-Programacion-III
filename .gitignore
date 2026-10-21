@@ -1,0 +1,15 @@
+# Visual Studio
+.vs/
+x64/
+Debug/
+Release/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+*.ipch
+*.aps
+
+# Compilación con CMake u otras herramientas
+build/
+out/
