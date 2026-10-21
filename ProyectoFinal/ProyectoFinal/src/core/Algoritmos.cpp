@@ -54,9 +54,9 @@ void armarArcos(const Grafo& g, const std::vector<bool>& excl, int k,
     if (k >= g.cantidadAristas()) return;
     const Arista& e = g.arista(k);
     if (!e.bloqueada && !excl[e.desde] && !excl[e.hasta]) {
-        agregarArco(ady, plano, e.desde, e.hasta, e.pesoIda + g.nodo(e.hasta).peso, k);
+        agregarArco(ady, plano, e.desde, e.hasta, static_cast<double>(e.pesoIda + g.nodo(e.hasta).peso), k);
         if (!e.dirigida)
-            agregarArco(ady, plano, e.hasta, e.desde, e.pesoVuelta + g.nodo(e.desde).peso, k);
+            agregarArco(ady, plano, e.hasta, e.desde, static_cast<double>(e.pesoVuelta + g.nodo(e.desde).peso), k);
     }
     armarArcos(g, excl, k + 1, ady, plano);
 }

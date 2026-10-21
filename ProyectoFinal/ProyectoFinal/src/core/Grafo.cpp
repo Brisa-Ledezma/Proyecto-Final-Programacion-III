@@ -116,7 +116,7 @@ std::string Grafo::nombreLibreDesde(int k) const {
 
 std::string Grafo::siguienteNombreLibre() const { return nombreLibreDesde(0); }
 
-int Grafo::agregarNodo(const std::string& nombre, double peso, double x, double y) {
+int Grafo::agregarNodo(const std::string& nombre, int peso, double x, double y) {
     Nodo n;
     n.nombre = recortar(nombre);
     n.peso = peso;
@@ -177,7 +177,7 @@ std::string Grafo::validarArista(int desde, int hasta, bool dirigida) const {
     return "";
 }
 
-int Grafo::agregarArista(int desde, int hasta, double pesoIda, double pesoVuelta, bool dirigida) {
+int Grafo::agregarArista(int desde, int hasta, int pesoIda, int pesoVuelta, bool dirigida) {
     Arista e;
     e.desde = desde;
     e.hasta = hasta;
