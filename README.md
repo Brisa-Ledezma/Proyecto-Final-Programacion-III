@@ -5,8 +5,8 @@ Aplicación de escritorio en **C++17 + Qt 6** (Visual Studio 2022) que calcula e
 ## Funcionalidades
 
 - **Tres algoritmos:** Dijkstra, Bellman-Ford y matriz de adyacencia (Floyd-Warshall). Con Floyd-Warshall se ven la matriz de adyacencia y la de distancias mínimas.
-- **Nodos con nombre y peso.** El nombre solo admite letras, nunca números. El peso se suma cada vez que el camino entra al nodo.
-- **Aristas dirigidas** (un solo peso) **y no dirigidas** (peso de ida y peso de vuelta).
+- **Nodos con nombre y peso entero.** El nombre solo admite letras, nunca números. El peso se suma cada vez que el camino entra al nodo.
+- **Aristas dirigidas** (un solo peso) **y no dirigidas** (peso de ida y peso de vuelta). Todos los pesos son enteros.
 - **Sin límite de nodos.** Se nombran solos (A … Z, AA, AB …) si no se escribe un nombre.
 - **Los nodos nunca se superponen.** Al crearlos o al soltarlos después de arrastrarlos se corren al lugar libre más cercano.
 - **Las aristas no pasan por encima de otros nodos.** Se curvan para esquivarlos. El dibujo se arma en capas (aristas → camino → pesos → nodos) para que nada tape a un nodo.
@@ -15,7 +15,8 @@ Aplicación de escritorio en **C++17 + Qt 6** (Visual Studio 2022) que calcula e
   - bloquear un nodo,
   - evitar los nodos pares o los impares (según su número #1, #2, …). Si el origen o el destino quedan afuera por el filtro, se muestra un error.
 - **Nodos obligatorios:** se prueban todos los órdenes y se queda el más barato.
-- **Recorrido animado** paso a paso sobre el dibujo.
+- **Recorrido animado** paso a paso sobre el dibujo, más una tabla con el **detalle de cada paso** (peso de la arista, peso del nodo, costo y acumulado).
+- **Tema oscuro con detalles rosas** y scroll de toda la página.
 - **Cargar ejemplo** y **Limpiar todo**.
 - **Sin `for` ni `while`:** todo el código usa solo `if` y recursión.
 
@@ -45,6 +46,7 @@ No hace falta la extensión *Qt VS Tools*: el proyecto no usa `Q_OBJECT` (las se
 | Bloquear, marcar como obligatorio, usar como origen o destino, eliminar | Clic derecho sobre el nodo o la arista, o desde las tablas |
 | Zoom | Ctrl + rueda del mouse |
 | Desplazar el dibujo | Arrastrar el fondo |
+| Desplazar la página | Rueda del mouse |
 
 El costo de pasar de `u` a `v` es el peso de la arista en ese sentido más el peso del nodo `v`.
 
@@ -62,7 +64,8 @@ ProyectoFinal/
         │   ├── Grafo.h/.cpp     nodos, aristas, validaciones, ejemplo
         │   └── Algoritmos.h/.cpp  Dijkstra, Bellman-Ford, Floyd-Warshall, filtros
         └── ui/                  interfaz Qt
-            ├── Tema.h           colores y estilos (los del prototipo HTML)
+            ├── Tema.h           tema oscuro con detalles rosas
+            ├── Controles.h      campos que no cambian con la rueda sin foco
             ├── ItemsGrafo.*     nodo, arista y etiqueta del dibujo
             ├── LienzoGrafo.*    dibujo interactivo, sin superposiciones
             ├── PanelResultado.* costo, camino, tablas y matrices
