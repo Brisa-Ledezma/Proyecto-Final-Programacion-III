@@ -24,9 +24,15 @@
     <ClCompile Include="ProyectoFinal.cpp">
       <Filter>Archivos de origen</Filter>
     </ClCompile>
+    <ClCompile Include="src\core\Grafo.cpp">
+      <Filter>Núcleo</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\Recorrer.h">
+      <Filter>Núcleo</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\Grafo.h">
       <Filter>Núcleo</Filter>
     </ClInclude>
   </ItemGroup>
