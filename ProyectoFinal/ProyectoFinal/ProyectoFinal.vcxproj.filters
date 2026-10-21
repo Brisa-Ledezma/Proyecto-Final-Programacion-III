@@ -39,6 +39,12 @@
     <ClCompile Include="src\ui\LienzoGrafo.cpp">
       <Filter>Interfaz</Filter>
     </ClCompile>
+    <ClCompile Include="src\ui\PanelResultado.cpp">
+      <Filter>Interfaz</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\VentanaPrincipal.cpp">
+      <Filter>Interfaz</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\Recorrer.h">
@@ -57,6 +63,12 @@
       <Filter>Interfaz</Filter>
     </ClInclude>
     <ClInclude Include="src\ui\LienzoGrafo.h">
+      <Filter>Interfaz</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\PanelResultado.h">
+      <Filter>Interfaz</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\VentanaPrincipal.h">
       <Filter>Interfaz</Filter>
     </ClInclude>
   </ItemGroup>
