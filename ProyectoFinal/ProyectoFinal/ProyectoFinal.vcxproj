@@ -108,6 +108,7 @@
     <ClCompile Include="src\ui\ItemsGrafo.cpp" />
     <ClCompile Include="src\ui\LienzoGrafo.cpp" />
     <ClCompile Include="src\ui\PanelResultado.cpp" />
+    <ClCompile Include="src\ui\VentanaPrincipal.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\Recorrer.h" />
@@ -117,6 +118,7 @@
     <ClInclude Include="src\ui\ItemsGrafo.h" />
     <ClInclude Include="src\ui\LienzoGrafo.h" />
     <ClInclude Include="src\ui\PanelResultado.h" />
+    <ClInclude Include="src\ui\VentanaPrincipal.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="RutaQt.props" />
