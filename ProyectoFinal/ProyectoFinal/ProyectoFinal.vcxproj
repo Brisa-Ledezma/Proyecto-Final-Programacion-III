@@ -108,6 +108,7 @@
   <ItemGroup>
     <ClInclude Include="src\core\Recorrer.h" />
     <ClInclude Include="src\core\Grafo.h" />
+    <ClInclude Include="src\core\Algoritmos.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="RutaQt.props" />

@@ -35,6 +35,9 @@
     <ClInclude Include="src\core\Grafo.h">
       <Filter>Núcleo</Filter>
     </ClInclude>
+    <ClInclude Include="src\core\Algoritmos.h">
+      <Filter>Núcleo</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="RutaQt.props">
