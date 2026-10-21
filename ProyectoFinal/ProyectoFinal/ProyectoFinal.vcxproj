@@ -105,12 +105,14 @@
     <ClCompile Include="ProyectoFinal.cpp" />
     <ClCompile Include="src\core\Grafo.cpp" />
     <ClCompile Include="src\core\Algoritmos.cpp" />
+    <ClCompile Include="src\ui\ItemsGrafo.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\Recorrer.h" />
     <ClInclude Include="src\core\Grafo.h" />
     <ClInclude Include="src\core\Algoritmos.h" />
     <ClInclude Include="src\ui\Tema.h" />
+    <ClInclude Include="src\ui\ItemsGrafo.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="RutaQt.props" />

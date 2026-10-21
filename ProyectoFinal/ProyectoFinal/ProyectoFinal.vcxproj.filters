@@ -33,6 +33,9 @@
     <ClCompile Include="src\core\Algoritmos.cpp">
       <Filter>Núcleo</Filter>
     </ClCompile>
+    <ClCompile Include="src\ui\ItemsGrafo.cpp">
+      <Filter>Interfaz</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\Recorrer.h">
@@ -45,6 +48,9 @@
       <Filter>Núcleo</Filter>
     </ClInclude>
     <ClInclude Include="src\ui\Tema.h">
+      <Filter>Interfaz</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\ItemsGrafo.h">
       <Filter>Interfaz</Filter>
     </ClInclude>
   </ItemGroup>
