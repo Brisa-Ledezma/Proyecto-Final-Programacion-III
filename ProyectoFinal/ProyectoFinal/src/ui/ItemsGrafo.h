@@ -35,7 +35,7 @@ public:
     enum { Type = UserType + 1 };
     int type() const override { return Type; }
 
-    NodoItem(int indice, const QString& nombre, int numero, double peso, double radio);
+    NodoItem(int indice, const QString& nombre, int numero, double radio);
 
     int indice() const { return indice_; }
     double radio() const { return radio_; }
@@ -63,7 +63,6 @@ private:
     int indice_;
     QString nombre_;
     int numero_;
-    double peso_;
     double radio_;
     bool bloqueado_ = false;
     bool obligatorio_ = false;

@@ -2,7 +2,7 @@
 
 // ============================================================
 //  Grafo.h
-//  Modelo del grafo: nodos (con nombre, peso y posición) y
+//  Modelo del grafo: nodos (con nombre y posición) y
 //  aristas (dirigidas con un peso, o no dirigidas con peso de
 //  ida y de vuelta). C++ puro, no depende de Qt.
 // ============================================================
@@ -14,7 +14,6 @@ namespace grafos {
 
 struct Nodo {
     std::string nombre;
-    int peso = 0;             // entero; se suma cada vez que el camino ENTRA al nodo
     bool bloqueado = false;   // el camino no puede pasar por acá
     bool obligatorio = false; // el camino tiene que pasar por acá
     double x = 0.0;           // posición en el dibujo
@@ -51,7 +50,7 @@ public:
     std::string validarNombre(const std::string& nombre) const;
     // Primer nombre libre de la serie A, B, ..., Z, AA, AB, ...
     std::string siguienteNombreLibre() const;
-    int agregarNodo(const std::string& nombre, int peso, double x, double y);
+    int agregarNodo(const std::string& nombre, double x, double y);
     void eliminarNodo(int indice);
 
     // ---- aristas ----

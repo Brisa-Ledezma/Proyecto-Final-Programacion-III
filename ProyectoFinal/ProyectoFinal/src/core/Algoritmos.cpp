@@ -36,8 +36,7 @@ std::string comillas(const std::string& s) { return "\"" + s + "\""; }
 
 // ============================================================
 //  Construcción de los arcos (aplicando bloqueos y filtros)
-//  Costo de ir u -> v = peso de la arista en ese sentido
-//                      + peso del nodo v (el nodo al que se entra)
+//  Costo de ir u -> v = peso de la arista en ese sentido.
 // ============================================================
 void agregarArco(ListaAdyacencia& ady, std::vector<ArcoPlano>& plano,
                  int u, int v, double costo, int arista) {
@@ -54,9 +53,9 @@ void armarArcos(const Grafo& g, const std::vector<bool>& excl, int k,
     if (k >= g.cantidadAristas()) return;
     const Arista& e = g.arista(k);
     if (!e.bloqueada && !excl[e.desde] && !excl[e.hasta]) {
-        agregarArco(ady, plano, e.desde, e.hasta, static_cast<double>(e.pesoIda + g.nodo(e.hasta).peso), k);
+        agregarArco(ady, plano, e.desde, e.hasta, static_cast<double>(e.pesoIda), k);
         if (!e.dirigida)
-            agregarArco(ady, plano, e.hasta, e.desde, static_cast<double>(e.pesoVuelta + g.nodo(e.desde).peso), k);
+            agregarArco(ady, plano, e.hasta, e.desde, static_cast<double>(e.pesoVuelta), k);
     }
     armarArcos(g, excl, k + 1, ady, plano);
 }
@@ -343,8 +342,8 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
     const bool negativos = hayCostoNegativo(plano, 0);
 
     if (alg == Algoritmo::Dijkstra && negativos)
-        return conError(r, "Dijkstra no admite costos negativos (hay una arista o un nodo con peso "
-                           "negativo). Probá con Bellman-Ford o con la matriz de adyacencia.");
+        return conError(r, "Dijkstra no admite pesos negativos (hay una arista con peso negativo). "
+                           "Probá con Bellman-Ford o con la matriz de adyacencia.");
 
     // ---------- Floyd: matriz completa una sola vez ----------
     Matriz D;

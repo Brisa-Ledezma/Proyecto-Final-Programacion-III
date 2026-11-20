@@ -255,22 +255,18 @@ QFrame* VentanaPrincipal::tarjetaNodos() {
     // Solo letras: los números se confundirían con el peso o el número del nodo
     nombreNodo_->setValidator(new QRegularExpressionValidator(
         QRegularExpression(QStringLiteral("\\p{L}{0,%1}").arg(grafos::Grafo::LARGO_MAXIMO_NOMBRE)), nombreNodo_));
-    pesoNodo_ = crearSpin(0);
     auto* agregar = new QPushButton(QStringLiteral("Agregar"));
     agregar->setObjectName(QStringLiteral("principal"));
     formulario->addWidget(rotulo(QStringLiteral("NOMBRE")), 0, 0);
-    formulario->addWidget(rotulo(QStringLiteral("PESO")), 0, 1);
     formulario->addWidget(nombreNodo_, 1, 0);
-    formulario->addWidget(pesoNodo_, 1, 1);
-    formulario->addWidget(agregar, 1, 2);
+    formulario->addWidget(agregar, 1, 1);
     formulario->setColumnStretch(0, 1);
     c->addLayout(formulario);
 
-    tablaNodos_ = crearTabla({QStringLiteral("#"), QStringLiteral("NODO"), QStringLiteral("PESO"),
-                              QStringLiteral("BLOQ."), QStringLiteral("OBLIG."), QString()}, 1);
+    tablaNodos_ = crearTabla({QStringLiteral("#"), QStringLiteral("NODO"), QStringLiteral("BLOQ."),
+                              QStringLiteral("OBLIG."), QString()}, 1);
     c->addWidget(tablaNodos_);
-    c->addWidget(pista(QStringLiteral("El peso (entero) se suma cada vez que el camino entra al nodo; el origen no cuenta. "
-                                      "El nombre solo admite letras. El # es el número que usan los filtros par/impar.")));
+    c->addWidget(pista(QStringLiteral("El nombre solo admite letras. El # es el número que usan los filtros par/impar.")));
 
     connect(agregar, &QPushButton::clicked, this, [this]() { agregarNodo(QPointF(), false); });
     connect(nombreNodo_, &QLineEdit::returnPressed, this, [this]() { agregarNodo(QPointF(), false); });
@@ -436,14 +432,6 @@ void VentanaPrincipal::refrescarTablaNodos() {
         tablaNodos_->setItem(i, 0, itemTexto(QStringLiteral("#%1").arg(grafos::Grafo::numeroDeNodo(i))));
         tablaNodos_->setItem(i, 1, itemTexto(aQString(nodo.nombre)));
 
-        auto* peso = spinDeTabla(nodo.peso);
-        connect(peso, &QSpinBox::valueChanged, this, [this, i](int v) {
-            grafo_.nodo(i).peso = v;
-            lienzo_->reconstruir();
-            cambio();
-        });
-        tablaNodos_->setCellWidget(i, 2, centrado(peso));
-
         auto* bloqueado = new QCheckBox;
         bloqueado->setChecked(nodo.bloqueado);
         connect(bloqueado, &QCheckBox::toggled, this, [this, i](bool v) {
@@ -451,7 +439,7 @@ void VentanaPrincipal::refrescarTablaNodos() {
             lienzo_->setFiltros(filtros());
             cambio();
         });
-        tablaNodos_->setCellWidget(i, 3, centrado(bloqueado));
+        tablaNodos_->setCellWidget(i, 2, centrado(bloqueado));
 
         auto* obligatorio = new QCheckBox;
         obligatorio->setChecked(nodo.obligatorio);
@@ -460,14 +448,14 @@ void VentanaPrincipal::refrescarTablaNodos() {
             lienzo_->setFiltros(filtros());
             cambio();
         });
-        tablaNodos_->setCellWidget(i, 4, centrado(obligatorio));
+        tablaNodos_->setCellWidget(i, 3, centrado(obligatorio));
 
         auto* quitar = botonQuitar(QStringLiteral("Quitar nodo"));
         // Diferido: no se puede borrar la tabla mientras se procesa el clic de su botón
         connect(quitar, &QToolButton::clicked, this, [this, i]() {
             QTimer::singleShot(0, this, [this, i]() { eliminarNodo(i); });
         });
-        tablaNodos_->setCellWidget(i, 5, centrado(quitar));
+        tablaNodos_->setCellWidget(i, 4, centrado(quitar));
     });
     ajustarAltoTabla(tablaNodos_);
 }
@@ -548,7 +536,7 @@ void VentanaPrincipal::agregarNodo(QPointF posicion, bool posicionElegida) {
     const double radio = radioParaNombre(aQString(nombre));
     const QPointF deseada = posicionElegida ? posicion : lienzo_->centroVisible();
     const QPointF libre = lienzo_->posicionLibre(deseada, radio, -1); // nunca encima de otro nodo
-    grafo_.agregarNodo(nombre, pesoNodo_->value(), libre.x(), libre.y());
+    grafo_.agregarNodo(nombre, libre.x(), libre.y());
     nombreNodo_->clear();
     refrescarTodo();
 }

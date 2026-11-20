@@ -19,7 +19,6 @@ QFont fuente(int pixeles, bool negrita) {
     return f;
 }
 
-QString formatoNumero(double v) { return QString::number(v, 'g', 6); }
 
 } // namespace
 
@@ -31,8 +30,8 @@ double radioParaNombre(const QString& nombre) {
 // ============================================================
 //  NodoItem
 // ============================================================
-NodoItem::NodoItem(int indice, const QString& nombre, int numero, double peso, double radio)
-    : indice_(indice), nombre_(nombre), numero_(numero), peso_(peso), radio_(radio) {
+NodoItem::NodoItem(int indice, const QString& nombre, int numero, double radio)
+    : indice_(indice), nombre_(nombre), numero_(numero), radio_(radio) {
     setZValue(capas::NODO);
     setFlag(QGraphicsItem::ItemIsMovable, true);
     setCursor(Qt::OpenHandCursor);
@@ -93,13 +92,6 @@ void NodoItem::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) {
     p->setPen(tema::apagado());
     p->drawText(QRectF(r * 0.55, -r - 6, 40, 14), Qt::AlignLeft | Qt::AlignVCenter,
                 QStringLiteral("#%1").arg(numero_));
-
-    // Peso del nodo
-    if (peso_ != 0.0) {
-        p->setFont(fuente(11, false));
-        const QString texto = (peso_ > 0 ? QStringLiteral("+") : QString()) + formatoNumero(peso_);
-        p->drawText(QRectF(-r - 30, r + 2, 2 * r + 60, 16), Qt::AlignCenter, texto);
-    }
 
     // Origen / destino
     if (!rol_.isEmpty()) {

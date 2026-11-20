@@ -116,10 +116,9 @@ std::string Grafo::nombreLibreDesde(int k) const {
 
 std::string Grafo::siguienteNombreLibre() const { return nombreLibreDesde(0); }
 
-int Grafo::agregarNodo(const std::string& nombre, int peso, double x, double y) {
+int Grafo::agregarNodo(const std::string& nombre, double x, double y) {
     Nodo n;
     n.nombre = recortar(nombre);
-    n.peso = peso;
     n.x = x;
     n.y = y;
     nodos_.push_back(n);
@@ -209,14 +208,14 @@ void Grafo::limpiar() {
 
 void Grafo::cargarEjemplo(int& origenSugerido, int& destinoSugerido) {
     limpiar();
-    //            nombre peso    x     y
-    agregarNodo("A", 0, 90, 240);   // #1
-    agregarNodo("B", 1, 260, 100);  // #2
-    agregarNodo("C", 0, 260, 380);  // #3
-    agregarNodo("D", 2, 450, 100);  // #4
-    agregarNodo("E", 1, 450, 380);  // #5
-    agregarNodo("F", 0, 630, 170);  // #6
-    agregarNodo("G", 0, 790, 300);  // #7
+    //          nombre   x     y
+    agregarNodo("A", 90, 240);  // #1
+    agregarNodo("B", 260, 100); // #2
+    agregarNodo("C", 260, 380); // #3
+    agregarNodo("D", 450, 100); // #4
+    agregarNodo("E", 450, 380); // #5
+    agregarNodo("F", 630, 170); // #6
+    agregarNodo("G", 790, 300); // #7
 
     //            desde hasta ida vuelta dirigida
     agregarArista(0, 1, 2, 2, false); // A — B
