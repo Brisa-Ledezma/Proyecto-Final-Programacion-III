@@ -103,6 +103,16 @@ int Grafo::agregarNodo(const std::string& nombre, double x, double y) {
     return cantidadNodos() - 1;
 }
 
+void Grafo::setBloqueado(int indice, bool valor) {
+    nodos_[indice].bloqueado = valor;
+    if (valor) nodos_[indice].obligatorio = false;
+}
+
+void Grafo::setObligatorio(int indice, bool valor) {
+    nodos_[indice].obligatorio = valor;
+    if (valor) nodos_[indice].bloqueado = false;
+}
+
 // Recorre las aristas de atrás para adelante borrando las que tocan al nodo.
 void Grafo::quitarAristasDe(int nodo, int k) {
     if (k < 0) return;
