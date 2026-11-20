@@ -265,7 +265,8 @@ QFrame* VentanaPrincipal::tarjetaNodos() {
 
     tablaNodos_ = crearTabla({QStringLiteral("NODO"), QStringLiteral("BLOQ."), QStringLiteral("OBLIG."), QString()}, 0);
     c->addWidget(tablaNodos_);
-    c->addWidget(pista(QStringLiteral("Cada nodo es un número desde 1 (hasta %1 cifras).").arg(grafos::Grafo::LARGO_MAXIMO_NOMBRE)));
+    c->addWidget(pista(QStringLiteral("Cada nodo es un número desde 1 (hasta %1 cifras). Un nodo puede estar "
+                                      "bloqueado u obligatorio, no las dos cosas.").arg(grafos::Grafo::LARGO_MAXIMO_NOMBRE)));
 
     connect(agregar, &QPushButton::clicked, this, [this]() { agregarNodo(QPointF(), false); });
     connect(nombreNodo_, &QLineEdit::returnPressed, this, [this]() { agregarNodo(QPointF(), false); });
@@ -431,21 +432,29 @@ void VentanaPrincipal::refrescarTablaNodos() {
         tablaNodos_->setItem(i, 0, itemTexto(aQString(nodo.nombre)));
 
         auto* bloqueado = new QCheckBox;
+        auto* obligatorio = new QCheckBox;
         bloqueado->setChecked(nodo.bloqueado);
-        connect(bloqueado, &QCheckBox::toggled, this, [this, i](bool v) {
-            grafo_.nodo(i).bloqueado = v;
+        obligatorio->setChecked(nodo.obligatorio);
+        // Uno u otro: tildar uno destilda el otro
+        connect(bloqueado, &QCheckBox::toggled, this, [this, i, obligatorio](bool v) {
+            grafo_.setBloqueado(i, v);
+            if (v) {
+                const QSignalBlocker b(obligatorio);
+                obligatorio->setChecked(false);
+            }
+            lienzo_->setFiltros(filtros());
+            cambio();
+        });
+        connect(obligatorio, &QCheckBox::toggled, this, [this, i, bloqueado](bool v) {
+            grafo_.setObligatorio(i, v);
+            if (v) {
+                const QSignalBlocker b(bloqueado);
+                bloqueado->setChecked(false);
+            }
             lienzo_->setFiltros(filtros());
             cambio();
         });
         tablaNodos_->setCellWidget(i, 1, centrado(bloqueado));
-
-        auto* obligatorio = new QCheckBox;
-        obligatorio->setChecked(nodo.obligatorio);
-        connect(obligatorio, &QCheckBox::toggled, this, [this, i](bool v) {
-            grafo_.nodo(i).obligatorio = v;
-            lienzo_->setFiltros(filtros());
-            cambio();
-        });
         tablaNodos_->setCellWidget(i, 2, centrado(obligatorio));
 
         auto* quitar = botonQuitar(QStringLiteral("Quitar nodo"));
@@ -650,8 +659,8 @@ void VentanaPrincipal::menuNodo(int indice, QPoint posicionPantalla) {
     if (elegida == nullptr) return;
     if (elegida == comoOrigen) { origen_->setCurrentIndex(indice); return; }
     if (elegida == comoDestino) { destino_->setCurrentIndex(indice); return; }
-    if (elegida == bloquear) grafo_.nodo(indice).bloqueado = !nodo.bloqueado;
-    if (elegida == obligatorio) grafo_.nodo(indice).obligatorio = !nodo.obligatorio;
+    if (elegida == bloquear) grafo_.setBloqueado(indice, !nodo.bloqueado);
+    if (elegida == obligatorio) grafo_.setObligatorio(indice, !nodo.obligatorio);
     const bool borrar = elegida == eliminar;
     // Diferido: el dibujo se reconstruye cuando termina el evento del clic derecho
     QTimer::singleShot(0, this, [this, indice, borrar]() {

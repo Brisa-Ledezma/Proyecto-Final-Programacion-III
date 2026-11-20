@@ -18,6 +18,7 @@ struct Nodo {
     std::string nombre;       // número desde 1, sin ceros a la izquierda
     bool bloqueado = false;   // el camino no puede pasar por acá
     bool obligatorio = false; // el camino tiene que pasar por acá
+                              // (bloqueado y obligatorio nunca están los dos)
     double x = 0.0;           // posición en el dibujo
     double y = 0.0;
 };
@@ -53,6 +54,10 @@ public:
     // Menor número libre desde 1.
     std::string siguienteNombreLibre() const;
     int agregarNodo(const std::string& nombre, double x, double y);
+
+    // Bloqueado y obligatorio se excluyen: activar uno apaga el otro.
+    void setBloqueado(int indice, bool valor);
+    void setObligatorio(int indice, bool valor);
     void eliminarNodo(int indice);
 
     // ---- aristas ----
