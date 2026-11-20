@@ -5,8 +5,7 @@
 //  Tarjetas de resultado debajo del dibujo:
 //   - Resultado: costo total y camino
 //   - Detalle del recorrido: cada paso con su costo
-//   - Costo mínimo desde el origen a cada nodo
-//   - Matrices (solo con Floyd-Warshall)
+//   - Matriz de adyacencia
 // ============================================================
 
 #include "core/Algoritmos.h"

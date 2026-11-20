@@ -45,7 +45,8 @@ public:
     // Busca un nodo por nombre. -1 si no está.
     int indiceDe(const std::string& nombre) const;
 
-    // Número del nodo (su nombre como entero). Lo usan los filtros par/impar.
+    // Número del nodo: su posición en el grafo (1 = primer nodo, 2 = segundo...), no su nombre.
+    // Lo usan los filtros par/impar, así que valen aunque el nombre sea "casa".
     long numeroDeNodo(int indice) const;
 
     // ---- nodos ----
@@ -62,9 +63,10 @@ public:
 
     // ---- tipo del grafo (vale para TODAS las aristas) ----
     bool dirigido() const { return dirigido_; }
-    // Pasar a dirigido: cada arista A — B se convierte en A → B (peso ida) y B → A (peso vuelta).
-    // Pasar a no dirigido: A → B y B → A se juntan en A — B (ida y vuelta); una sola queda con
-    // el mismo peso en los dos sentidos. Así ir y volver de modo no cambia nada.
+    // Pasar a dirigido: cada arista A — B queda como A → B con el peso de ida; el peso de vuelta se
+    // descarta (la interfaz guarda el estado anterior para "Deshacer").
+    // Pasar a no dirigido: A → B y B → A cargadas a mano se juntan en A — B (ida y vuelta); una sola
+    // queda con el mismo peso en los dos sentidos.
     void setDirigido(bool valor);
 
     // ---- aristas ----

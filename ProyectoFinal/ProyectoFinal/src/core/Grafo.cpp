@@ -1,5 +1,7 @@
 #include "Grafo.h"
 
+#include <random>
+
 
 namespace grafos {
 
@@ -14,12 +16,6 @@ bool soloDigitos(const std::string& s, size_t i) {
     if (i == s.size()) return true;
     if (!esDigito(s[i])) return false;
     return soloDigitos(s, i + 1);
-}
-
-// Convierte "23443" en 23443, dígito por dígito.
-long aNumero(const std::string& s, size_t i, long acumulado) {
-    if (i == s.size()) return acumulado;
-    return aNumero(s, i + 1, acumulado * 10 + (s[i] - '0'));
 }
 
 size_t primerNoEspacio(const std::string& s, size_t i) {
@@ -66,7 +62,7 @@ int Grafo::indiceDe(const std::string& nombre) const {
 }
 
 long Grafo::numeroDeNodo(int indice) const {
-    return aNumero(nodos_[indice].nombre, 0, 0);
+    return static_cast<long>(indice) + 1;
 }
 
 // ------------------------------------------------------------
@@ -178,14 +174,10 @@ int Grafo::agregarArista(int desde, int hasta, int pesoIda, int pesoVuelta, bool
 // ---- cambio de tipo del grafo ----
 void Grafo::separarEnDirigidas(int k, int total) {
     if (k >= total) return;
+    // Cada arista queda con un solo sentido (desde -> hasta): se descarta el peso de vuelta.
+    // Para recuperarlo, "Deshacer" vuelve al grafo no dirigido anterior.
     aristas_[k].dirigida = true;
-    Arista vuelta = aristas_[k];
-    vuelta.desde = aristas_[k].hasta;
-    vuelta.hasta = aristas_[k].desde;
-    vuelta.pesoIda = aristas_[k].pesoVuelta;
-    vuelta.pesoVuelta = vuelta.pesoIda;
     aristas_[k].pesoVuelta = aristas_[k].pesoIda;
-    aristas_.push_back(vuelta);
     separarEnDirigidas(k + 1, total);
 }
 
@@ -248,17 +240,22 @@ void Grafo::cargarEjemplo(int& origenSugerido, int& destinoSugerido) {
     agregarNodo("6", 630, 170);
     agregarNodo("7", 790, 300);
 
+    // Pesos al azar (1 a 9) cada vez que se carga el ejemplo; ida y vuelta se sortean por separado
+    static std::mt19937 azar{std::random_device{}()};
+    std::uniform_int_distribution<int> sorteo(1, 9);
+    const auto peso = [&]() { return sorteo(azar); };
+
     //            desde hasta ida vuelta dirigida (el ejemplo es no dirigido)
-    agregarArista(0, 1, 2, 2, false); // 1 — 2
-    agregarArista(0, 2, 4, 3, false); // 1 — 3 (ida y vuelta distintas)
-    agregarArista(1, 2, 1, 1, false); // 2 — 3
-    agregarArista(1, 3, 3, 3, false); // 2 — 4
-    agregarArista(2, 4, 6, 5, false); // 3 — 5
-    agregarArista(3, 4, 2, 2, false); // 4 — 5
-    agregarArista(3, 5, 2, 3, false); // 4 — 6
-    agregarArista(4, 5, 4, 4, false); // 5 — 6
-    agregarArista(5, 6, 1, 1, false); // 6 — 7
-    agregarArista(4, 6, 7, 7, false); // 5 — 7
+    agregarArista(0, 1, peso(), peso(), false); // 1 — 2
+    agregarArista(0, 2, peso(), peso(), false); // 1 — 3
+    agregarArista(1, 2, peso(), peso(), false); // 2 — 3
+    agregarArista(1, 3, peso(), peso(), false); // 2 — 4
+    agregarArista(2, 4, peso(), peso(), false); // 3 — 5
+    agregarArista(3, 4, peso(), peso(), false); // 4 — 5
+    agregarArista(3, 5, peso(), peso(), false); // 4 — 6
+    agregarArista(4, 5, peso(), peso(), false); // 5 — 6
+    agregarArista(5, 6, peso(), peso(), false); // 6 — 7
+    agregarArista(4, 6, peso(), peso(), false); // 5 — 7
 
     origenSugerido = 0;  // 1
     destinoSugerido = 6; // 7

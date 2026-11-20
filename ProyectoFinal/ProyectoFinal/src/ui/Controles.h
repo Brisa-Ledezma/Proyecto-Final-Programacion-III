@@ -20,11 +20,13 @@ public:
         setRange(-100000, 100000);
         setFocusPolicy(Qt::StrongFocus);
         setButtonSymbols(QAbstractSpinBox::NoButtons);
+        setInputMethodHints(Qt::ImhFormattedNumbersOnly); // teclado numérico en pantallas táctiles
+        setKeyboardTracking(false); // el valor se aplica al confirmar, no en cada tecla (evita redibujar todo por dígito)
     }
 
 protected:
     QValidator::State validate(QString& texto, int& posicion) const override {
-        static const QRegularExpression permitido(QStringLiteral("^-?[0-9]*$"));
+        static const QRegularExpression permitido(QStringLiteral("^-?[0-9]{0,6}$"));
         if (!permitido.match(texto).hasMatch()) return QValidator::Invalid;
         return QSpinBox::validate(texto, posicion);
     }

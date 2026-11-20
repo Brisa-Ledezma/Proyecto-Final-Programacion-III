@@ -73,8 +73,9 @@ LienzoGrafo::LienzoGrafo(grafos::Grafo* grafo, QWidget* parent)
     setRenderHint(QPainter::TextAntialiasing, true);
     setDragMode(QGraphicsView::ScrollHandDrag);
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
-    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+    setViewportUpdateMode(QGraphicsView::SmartViewportUpdate); // repinta solo lo que cambió
     setBackgroundBrush(QBrush(fondoPunteado()));
+    setCacheMode(QGraphicsView::CacheBackground);              // la grilla de puntos se dibuja una sola vez
     setMinimumSize(420, 300);
 
     temporizador_ = new QTimer(this);
@@ -246,6 +247,14 @@ void LienzoGrafo::rutearAristas() {
     recorrer(0, static_cast<int>(aristas_.size()), [&](int k) { rutearArista(k); });
 }
 
+// Mientras se arrastra un nodo solo se reacomodan sus aristas; al soltarlo se rutean todas.
+void LienzoGrafo::rutearAristasDe(int nodo) {
+    recorrer(0, static_cast<int>(aristas_.size()), [&](int k) {
+        const grafos::Arista& e = grafo_->arista(k);
+        if (e.desde == nodo || e.hasta == nodo) rutearArista(k);
+    });
+}
+
 // Cuántas aristas unen el mismo par de nodos y en qué lugar está k.
 void LienzoGrafo::posicionEnGrupo(int k, int j, int& posicion, int& tamanio) const {
     if (j >= grafo_->cantidadAristas()) return;
@@ -326,7 +335,10 @@ bool LienzoGrafo::lugarLibre(QPointF p, double radio, int ignorar, int j) const 
     if (j >= grafo_->cantidadNodos()) return true;
     if (j != ignorar) {
         const grafos::Nodo& otro = grafo_->nodo(j);
-        const double radioOtro = radioParaNombre(QString::fromStdString(otro.nombre));
+        // El radio ya está calculado en el item: evita medir la fuente por cada nodo en cada intento.
+        const double radioOtro = (j < static_cast<int>(nodos_.size()))
+                                     ? nodos_[j]->radio()
+                                     : radioParaNombre(QString::fromStdString(otro.nombre));
         if (distancia(p, QPointF(otro.x, otro.y)) < radio + radioOtro + MARGEN_ENTRE_NODOS) return false;
     }
     return lugarLibre(p, radio, ignorar, j + 1);
@@ -369,7 +381,7 @@ void LienzoGrafo::nodoMoviendose(int indice, QPointF posicion) {
     if (indice < 0 || indice >= grafo_->cantidadNodos()) return;
     grafo_->nodo(indice).x = posicion.x();
     grafo_->nodo(indice).y = posicion.y();
-    if (static_cast<int>(aristas_.size()) == grafo_->cantidadAristas()) rutearAristas();
+    if (static_cast<int>(aristas_.size()) == grafo_->cantidadAristas()) rutearAristasDe(indice);
 }
 
 void LienzoGrafo::nodoSoltado(int indice) {
@@ -377,6 +389,7 @@ void LienzoGrafo::nodoSoltado(int indice) {
     NodoItem* item = nodos_[indice];
     const QPointF libre = posicionLibre(item->pos(), item->radio(), indice);
     if (distancia(libre, item->pos()) > 0.5) item->setPos(libre); // dispara nodoMoviendose
+    if (static_cast<int>(aristas_.size()) == grafo_->cantidadAristas()) rutearAristas(); // ruteo completo al soltar
     actualizarRectEscena();
 }
 
@@ -387,6 +400,8 @@ void LienzoGrafo::actualizarRectEscena() {
     const QRectF contenido = escena_->itemsBoundingRect().adjusted(-120, -120, 120, 120);
     escena_->setSceneRect(contenido.united(QRectF(0, 0, 900, 520)));
 }
+
+void LienzoGrafo::escalarVista(double factor) { scale(factor, factor); }
 
 void LienzoGrafo::ajustarVista() {
     resetTransform();

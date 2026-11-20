@@ -74,7 +74,10 @@ int main(int argc, char* argv[]) {
     // Tema oscuro
     aplicacion.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
     aplicacion.setPalette(paletaOscura());
-    aplicacion.setStyleSheet(tema::hojaDeEstilo(prepararIconos()));
+    const QString iconos = prepararIconos();
+    aplicacion.setProperty("carpetaIconos", iconos);               // para rearmar la hoja de estilo al cambiar el zoom
+    aplicacion.setProperty("escalaUI", tema::ESCALA_INICIAL);
+    aplicacion.setStyleSheet(tema::hojaDeEstilo(iconos, tema::ESCALA_INICIAL));
 
     VentanaPrincipal ventana;
     ventana.resize(1440, 900);
