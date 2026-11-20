@@ -224,13 +224,13 @@ void VentanaPrincipal::construirInterfaz() {
     capaIzquierda->addWidget(tarjetaNodos());
     capaIzquierda->addWidget(tarjetaAristas());
     capaIzquierda->addWidget(tarjetaFiltros());
-    capaIzquierda->addWidget(tarjetaResolver());
     capaIzquierda->addStretch(1);
     columnas->addWidget(izquierda, 0, Qt::AlignTop);
 
     auto* derecha = new QVBoxLayout;
     derecha->setSpacing(18);
     derecha->addWidget(tarjetaLienzo());
+    derecha->addWidget(tarjetaResolver()); // justo debajo del dibujo y arriba del resultado: no hace falta scrollear
     resultado_ = new PanelResultado;
     derecha->addWidget(resultado_);
     derecha->addStretch(1);
@@ -462,15 +462,16 @@ QFrame* VentanaPrincipal::tarjetaResolver() {
     algoritmo_->addItem(QStringLiteral("Dijkstra"));
     algoritmo_->addItem(QStringLiteral("Bellman-Ford"));
     algoritmo_->addItem(QStringLiteral("Matriz de adyacencia"));
+    // Tarjeta ancha (columna derecha): origen, destino y algoritmo en una sola fila
     formulario->addWidget(rotulo(QStringLiteral("ORIGEN")), 0, 0);
     formulario->addWidget(rotulo(QStringLiteral("DESTINO")), 0, 1);
+    formulario->addWidget(rotulo(QStringLiteral("ALGORITMO")), 0, 2);
     formulario->addWidget(origen_, 1, 0);
     formulario->addWidget(destino_, 1, 1);
-    formulario->addWidget(rotulo(QStringLiteral("ALGORITMO")), 2, 0, 1, 2);
-    formulario->addWidget(algoritmo_, 3, 0, 1, 2);
-    formulario->setRowMinimumHeight(2, 26);
+    formulario->addWidget(algoritmo_, 1, 2);
     formulario->setColumnStretch(0, 1);
     formulario->setColumnStretch(1, 1);
+    formulario->setColumnStretch(2, 2);
     c->addLayout(formulario);
 
     animar_ = new QCheckBox(QStringLiteral("Mostrar el recorrido paso a paso"));
@@ -479,11 +480,11 @@ QFrame* VentanaPrincipal::tarjetaResolver() {
 
     auto* calcularBoton = new QPushButton(QStringLiteral("Calcular camino"));
     calcularBoton->setObjectName(QStringLiteral("principal"));
-    calcularBoton->setMinimumHeight(40);
-    c->addWidget(calcularBoton);
+    calcularBoton->setMinimumHeight(tema::px(40));
 
     auto* fila = new QHBoxLayout;
     fila->setSpacing(10);
+    fila->addWidget(calcularBoton, 3);
     deshacer_ = new QPushButton(QStringLiteral("Deshacer"));
     deshacer_->setEnabled(false);
     deshacer_->setToolTip(QStringLiteral("Deshace la última edición del grafo (Ctrl + Z)"));
