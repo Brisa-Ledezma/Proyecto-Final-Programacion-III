@@ -332,8 +332,14 @@ QFrame* VentanaPrincipal::tarjetaFiltros() {
     QFrame* marco = tarjeta(QStringLiteral("Filtros"), c);
     evitarPares_ = new QCheckBox(QStringLiteral("Evitar nodos pares  (2, 4, 6…)"));
     evitarImpares_ = new QCheckBox(QStringLiteral("Evitar nodos impares  (1, 3, 5…)"));
+    evitarAristasPares_ = new QCheckBox(QStringLiteral("Evitar aristas de peso par  (2, 4, 6…)"));
+    evitarAristasImpares_ = new QCheckBox(QStringLiteral("Evitar aristas de peso impar  (1, 3, 5…)"));
+    c->addWidget(rotulo(QStringLiteral("NODOS")));
     c->addWidget(evitarPares_);
     c->addWidget(evitarImpares_);
+    c->addWidget(rotulo(QStringLiteral("ARISTAS")));
+    c->addWidget(evitarAristasPares_);
+    c->addWidget(evitarAristasImpares_);
 
     auto* fila = new QGridLayout;
     fila->setHorizontalSpacing(10);
@@ -349,9 +355,9 @@ QFrame* VentanaPrincipal::tarjetaFiltros() {
     listaPesos_->setLayout(new QGridLayout);
     listaPesos_->layout()->setContentsMargins(0, 0, 0, 0);
     c->addWidget(listaPesos_);
-    c->addWidget(pista(QStringLiteral("Un peso bloqueado corta cada sentido de arista que pesa eso (en una no dirigida "
-                                      "con ida 4 y vuelta 2, bloquear el 4 corta solo la ida). Para evitar un nodo o una "
-                                      "arista puntual, tildá «Bloq.» en su tabla o hacé clic derecho en el dibujo.")));
+    c->addWidget(pista(QStringLiteral("Los filtros de aristas (par, impar o un peso) cortan cada sentido que pesa eso: en "
+                                      "una no dirigida con ida 4 y vuelta 3, evitar pares corta solo la ida. Para evitar un "
+                                      "nodo o una arista puntual, tildá «Bloq.» en su tabla o hacé clic derecho en el dibujo.")));
 
     const auto alCambiar = [this](bool) {
         lienzo_->setFiltros(filtros());
@@ -359,6 +365,8 @@ QFrame* VentanaPrincipal::tarjetaFiltros() {
     };
     connect(evitarPares_, &QCheckBox::toggled, this, alCambiar);
     connect(evitarImpares_, &QCheckBox::toggled, this, alCambiar);
+    connect(evitarAristasPares_, &QCheckBox::toggled, this, alCambiar);
+    connect(evitarAristasImpares_, &QCheckBox::toggled, this, alCambiar);
     connect(bloquearPeso, &QPushButton::clicked, this, [this]() { agregarPesoBloqueado(); });
     refrescarPesosBloqueados();
     return marco;
@@ -595,6 +603,8 @@ grafos::Filtros VentanaPrincipal::filtros() const {
     f.evitarPares = evitarPares_->isChecked();
     f.evitarImpares = evitarImpares_->isChecked();
     f.pesosBloqueados = pesosBloqueados_;
+    f.evitarAristasPares = evitarAristasPares_->isChecked();
+    f.evitarAristasImpares = evitarAristasImpares_->isChecked();
     return f;
 }
 
@@ -654,8 +664,12 @@ void VentanaPrincipal::quitarPesoBloqueado(int peso) {
 void VentanaPrincipal::limpiarFiltros() {
     const QSignalBlocker b1(evitarPares_);
     const QSignalBlocker b2(evitarImpares_);
+    const QSignalBlocker b3(evitarAristasPares_);
+    const QSignalBlocker b4(evitarAristasImpares_);
     evitarPares_->setChecked(false);
     evitarImpares_->setChecked(false);
+    evitarAristasPares_->setChecked(false);
+    evitarAristasImpares_->setChecked(false);
     pesosBloqueados_.clear();
     refrescarPesosBloqueados();
 }

@@ -49,6 +49,8 @@ private:
     // Filtros
     QCheckBox* evitarPares_ = nullptr;
     QCheckBox* evitarImpares_ = nullptr;
+    QCheckBox* evitarAristasPares_ = nullptr;
+    QCheckBox* evitarAristasImpares_ = nullptr;
     QSpinBox* pesoABloquear_ = nullptr;
     QWidget* listaPesos_ = nullptr;          // un botón por peso bloqueado
     std::vector<int> pesosBloqueados_;
