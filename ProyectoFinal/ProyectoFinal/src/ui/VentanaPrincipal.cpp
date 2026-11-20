@@ -892,6 +892,7 @@ void VentanaPrincipal::cargarEjemplo() {
     lienzo_->setOrigenDestino(origen, destino);
     lienzo_->reconstruir();
     lienzo_->ajustarVista();
+    actualizarEstado(); // contador de nodos y filtros activos
     calcular(true);
 }
 
