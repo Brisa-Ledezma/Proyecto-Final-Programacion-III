@@ -78,6 +78,7 @@ private:
     void refrescarTablaNodos();
     void refrescarTablaAristas();
     void cambio();
+    void sincronizarTipo();
     void refrescarPesosBloqueados();
     void agregarPesoBloqueado();
     void quitarPesoBloqueado(int peso);
