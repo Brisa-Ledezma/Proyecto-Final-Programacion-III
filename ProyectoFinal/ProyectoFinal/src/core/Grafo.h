@@ -28,7 +28,7 @@ struct Arista {
     int hasta = -1;
     int pesoIda = 1;          // desde -> hasta (entero)
     int pesoVuelta = 1;       // hasta -> desde (solo si NO es dirigida)
-    bool dirigida = false;
+    bool dirigida = false;    // siempre igual al tipo del grafo
     bool bloqueada = false;
 };
 
@@ -60,6 +60,13 @@ public:
     void setObligatorio(int indice, bool valor);
     void eliminarNodo(int indice);
 
+    // ---- tipo del grafo (vale para TODAS las aristas) ----
+    bool dirigido() const { return dirigido_; }
+    // Pasar a dirigido: cada arista A — B se convierte en A → B (peso ida) y B → A (peso vuelta).
+    // Pasar a no dirigido: A → B y B → A se juntan en A — B (ida y vuelta); una sola queda con
+    // el mismo peso en los dos sentidos. Así ir y volver de modo no cambia nada.
+    void setDirigido(bool valor);
+
     // ---- aristas ----
     std::string validarArista(int desde, int hasta, bool dirigida) const;
     int agregarArista(int desde, int hasta, int pesoIda, int pesoVuelta, bool dirigida);
@@ -77,6 +84,7 @@ public:
 private:
     std::vector<Nodo> nodos_;
     std::vector<Arista> aristas_;
+    bool dirigido_ = false;
 
     bool cubreArco(const Arista& e, int u, int v) const;
     int buscarArco(int u, int v, int k) const;
@@ -84,6 +92,9 @@ private:
     std::string nombreLibreDesde(int k) const;
     void quitarAristasDe(int nodo, int k);
     void reindexarAristas(int nodoBorrado, int k);
+    void separarEnDirigidas(int k, int total);
+    void juntarOpuestas(int k);
+    int buscarOpuesta(int k, int j) const;
 };
 
 // Nombre automático número k: 0->"1", 1->"2", ...

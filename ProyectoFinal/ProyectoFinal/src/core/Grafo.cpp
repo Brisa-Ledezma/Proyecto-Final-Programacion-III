@@ -175,6 +175,48 @@ int Grafo::agregarArista(int desde, int hasta, int pesoIda, int pesoVuelta, bool
     return cantidadAristas() - 1;
 }
 
+// ---- cambio de tipo del grafo ----
+void Grafo::separarEnDirigidas(int k, int total) {
+    if (k >= total) return;
+    aristas_[k].dirigida = true;
+    Arista vuelta = aristas_[k];
+    vuelta.desde = aristas_[k].hasta;
+    vuelta.hasta = aristas_[k].desde;
+    vuelta.pesoIda = aristas_[k].pesoVuelta;
+    vuelta.pesoVuelta = vuelta.pesoIda;
+    aristas_[k].pesoVuelta = aristas_[k].pesoIda;
+    aristas_.push_back(vuelta);
+    separarEnDirigidas(k + 1, total);
+}
+
+int Grafo::buscarOpuesta(int k, int j) const {
+    if (j >= cantidadAristas()) return -1;
+    if (aristas_[j].desde == aristas_[k].hasta && aristas_[j].hasta == aristas_[k].desde) return j;
+    return buscarOpuesta(k, j + 1);
+}
+
+void Grafo::juntarOpuestas(int k) {
+    if (k >= cantidadAristas()) return;
+    Arista& e = aristas_[k];
+    e.dirigida = false;
+    const int j = buscarOpuesta(k, k + 1);
+    if (j == -1) {
+        e.pesoVuelta = e.pesoIda; // sin opuesta: mismo peso en los dos sentidos
+    } else {
+        e.pesoVuelta = aristas_[j].pesoIda;
+        e.bloqueada = e.bloqueada || aristas_[j].bloqueada;
+        aristas_.erase(aristas_.begin() + j);
+    }
+    juntarOpuestas(k + 1);
+}
+
+void Grafo::setDirigido(bool valor) {
+    if (valor == dirigido_) return;
+    dirigido_ = valor;
+    if (valor) separarEnDirigidas(0, cantidadAristas());
+    else juntarOpuestas(0);
+}
+
 void Grafo::eliminarArista(int indice) {
     if (indice < 0 || indice >= cantidadAristas()) return;
     aristas_.erase(aristas_.begin() + indice);
@@ -196,6 +238,7 @@ void Grafo::limpiar() {
 
 void Grafo::cargarEjemplo(int& origenSugerido, int& destinoSugerido) {
     limpiar();
+    dirigido_ = false;
     //          nombre   x     y
     agregarNodo("1", 90, 240);
     agregarNodo("2", 260, 100);
@@ -205,17 +248,17 @@ void Grafo::cargarEjemplo(int& origenSugerido, int& destinoSugerido) {
     agregarNodo("6", 630, 170);
     agregarNodo("7", 790, 300);
 
-    //            desde hasta ida vuelta dirigida
+    //            desde hasta ida vuelta dirigida (el ejemplo es no dirigido)
     agregarArista(0, 1, 2, 2, false); // 1 — 2
     agregarArista(0, 2, 4, 3, false); // 1 — 3 (ida y vuelta distintas)
     agregarArista(1, 2, 1, 1, false); // 2 — 3
-    agregarArista(1, 3, 3, 3, true);  // 2 → 4
+    agregarArista(1, 3, 3, 3, false); // 2 — 4
     agregarArista(2, 4, 6, 5, false); // 3 — 5
     agregarArista(3, 4, 2, 2, false); // 4 — 5
     agregarArista(3, 5, 2, 3, false); // 4 — 6
     agregarArista(4, 5, 4, 4, false); // 5 — 6
     agregarArista(5, 6, 1, 1, false); // 6 — 7
-    agregarArista(4, 6, 7, 7, true);  // 5 → 7
+    agregarArista(4, 6, 7, 7, false); // 5 — 7
 
     origenSugerido = 0;  // 1
     destinoSugerido = 6; // 7

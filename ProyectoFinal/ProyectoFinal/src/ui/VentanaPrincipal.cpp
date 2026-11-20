@@ -284,14 +284,14 @@ QFrame* VentanaPrincipal::tarjetaAristas() {
     desde_ = new ComboSinRueda;
     hasta_ = new ComboSinRueda;
     tipoArista_ = new ComboSinRueda;
-    tipoArista_->addItem(QStringLiteral("No dirigida"));
-    tipoArista_->addItem(QStringLiteral("Dirigida"));
-    formulario->addWidget(rotulo(QStringLiteral("DESDE")), 0, 0);
-    formulario->addWidget(rotulo(QStringLiteral("HASTA")), 0, 1);
-    formulario->addWidget(rotulo(QStringLiteral("TIPO")), 0, 2);
-    formulario->addWidget(desde_, 1, 0);
-    formulario->addWidget(hasta_, 1, 1);
-    formulario->addWidget(tipoArista_, 1, 2);
+    tipoArista_->addItem(QStringLiteral("No dirigido"));
+    tipoArista_->addItem(QStringLiteral("Dirigido"));
+    formulario->addWidget(rotulo(QStringLiteral("TIPO DE GRAFO (vale para todas las aristas)")), 0, 0, 1, 3);
+    formulario->addWidget(tipoArista_, 1, 0, 1, 3);
+    formulario->addWidget(rotulo(QStringLiteral("DESDE")), 2, 0);
+    formulario->addWidget(rotulo(QStringLiteral("HASTA")), 2, 1);
+    formulario->addWidget(desde_, 3, 0);
+    formulario->addWidget(hasta_, 3, 1);
 
     etiquetaIda_ = rotulo(QStringLiteral("PESO IDA"));
     etiquetaVuelta_ = rotulo(QStringLiteral("PESO VUELTA"));
@@ -299,29 +299,29 @@ QFrame* VentanaPrincipal::tarjetaAristas() {
     pesoVuelta_ = crearSpin(1);
     auto* agregar = new QPushButton(QStringLiteral("Agregar"));
     agregar->setObjectName(QStringLiteral("principal"));
-    formulario->addWidget(etiquetaIda_, 2, 0);
-    formulario->addWidget(etiquetaVuelta_, 2, 1);
-    formulario->addWidget(pesoIda_, 3, 0);
-    formulario->addWidget(pesoVuelta_, 3, 1);
-    formulario->addWidget(agregar, 3, 2);
+    formulario->addWidget(etiquetaIda_, 4, 0);
+    formulario->addWidget(etiquetaVuelta_, 4, 1);
+    formulario->addWidget(pesoIda_, 5, 0);
+    formulario->addWidget(pesoVuelta_, 5, 1);
+    formulario->addWidget(agregar, 5, 2);
     formulario->setRowMinimumHeight(2, 26);
+    formulario->setRowMinimumHeight(4, 26);
     formulario->setColumnStretch(0, 1);
     formulario->setColumnStretch(1, 1);
     formulario->setColumnStretch(2, 1);
     c->addLayout(formulario);
 
     tablaAristas_ = crearTabla({QStringLiteral("ARISTA"), QStringLiteral("IDA"), QStringLiteral("VUELTA"),
-                                QStringLiteral("TIPO"), QStringLiteral("BLOQ."), QString()}, 0);
+                                QStringLiteral("BLOQ."), QString()}, 0);
     c->addWidget(tablaAristas_);
-    c->addWidget(pista(QStringLiteral("Dirigida: un solo peso. No dirigida: peso de ida (desde → hasta) y de vuelta "
-                                      "(hasta → desde). En el dibujo se ve «ida ⇄ vuelta» cuando son distintos.")));
+    c->addWidget(pista(QStringLiteral("No dirigido: cada arista tiene peso de ida (desde → hasta) y de vuelta "
+                                      "(hasta → desde). Dirigido: un solo peso por arista. Al cambiar el tipo, "
+                                      "A — B pasa a A → B y B → A, y al volver se juntan de nuevo.")));
 
-    // Si es dirigida, el peso de vuelta no aplica
+    // El tipo es del grafo entero: convierte todas las aristas
     connect(tipoArista_, &QComboBox::currentIndexChanged, this, [this](int indice) {
-        const bool dirigida = indice == 1;
-        pesoVuelta_->setEnabled(!dirigida);
-        etiquetaVuelta_->setEnabled(!dirigida);
-        etiquetaIda_->setText(dirigida ? QStringLiteral("PESO") : QStringLiteral("PESO IDA"));
+        grafo_.setDirigido(indice == 1);
+        refrescarTodo();
     });
     connect(agregar, &QPushButton::clicked, this, [this]() { agregarArista(); });
     return marco;
@@ -433,6 +433,7 @@ QFrame* VentanaPrincipal::tarjetaResolver() {
 //  Refresco
 // ============================================================
 void VentanaPrincipal::refrescarTodo() {
+    sincronizarTipo();
     refrescarCombos();
     refrescarTablaNodos();
     refrescarTablaAristas();
@@ -440,6 +441,20 @@ void VentanaPrincipal::refrescarTodo() {
     lienzo_->setOrigenDestino(origen_->currentIndex(), destino_->currentIndex());
     lienzo_->reconstruir();
     cambio();
+}
+
+// El selector de tipo y el formulario de aristas siguen al grafo
+void VentanaPrincipal::sincronizarTipo() {
+    const bool dirigido = grafo_.dirigido();
+    {
+        const QSignalBlocker b(tipoArista_);
+        tipoArista_->setCurrentIndex(dirigido ? 1 : 0);
+    }
+    pesoVuelta_->setEnabled(!dirigido);
+    etiquetaVuelta_->setEnabled(!dirigido);
+    etiquetaIda_->setText(dirigido ? QStringLiteral("PESO") : QStringLiteral("PESO IDA"));
+    tablaAristas_->setColumnHidden(2, dirigido);
+    tablaAristas_->horizontalHeaderItem(1)->setText(dirigido ? QStringLiteral("PESO") : QStringLiteral("IDA"));
 }
 
 void VentanaPrincipal::refrescarCombos() {
@@ -527,8 +542,6 @@ void VentanaPrincipal::refrescarTablaAristas() {
             tablaAristas_->setCellWidget(k, 2, centrado(vuelta));
         }
 
-        tablaAristas_->setItem(k, 3, itemTexto(e.dirigida ? QStringLiteral("Dirigida") : QStringLiteral("No dirigida")));
-
         auto* bloqueada = new QCheckBox;
         bloqueada->setChecked(e.bloqueada);
         connect(bloqueada, &QCheckBox::toggled, this, [this, k](bool v) {
@@ -536,13 +549,13 @@ void VentanaPrincipal::refrescarTablaAristas() {
             lienzo_->setFiltros(filtros());
             cambio();
         });
-        tablaAristas_->setCellWidget(k, 4, centrado(bloqueada));
+        tablaAristas_->setCellWidget(k, 3, centrado(bloqueada));
 
         auto* quitar = botonQuitar(QStringLiteral("Quitar arista"));
         connect(quitar, &QToolButton::clicked, this, [this, k]() {
             QTimer::singleShot(0, this, [this, k]() { eliminarArista(k); });
         });
-        tablaAristas_->setCellWidget(k, 5, centrado(quitar));
+        tablaAristas_->setCellWidget(k, 4, centrado(quitar));
     });
     ajustarAltoTabla(tablaAristas_);
 }
@@ -578,7 +591,7 @@ void VentanaPrincipal::agregarNodo(QPointF posicion, bool posicionElegida) {
 void VentanaPrincipal::agregarArista() {
     const int a = desde_->currentIndex();
     const int b = hasta_->currentIndex();
-    const bool dirigida = tipoArista_->currentIndex() == 1;
+    const bool dirigida = grafo_.dirigido();
     const std::string error = grafo_.validarArista(a, b, dirigida);
     if (!error.empty()) {
         QMessageBox::warning(this, QStringLiteral("No se puede agregar la arista"), aQString(error));
@@ -693,6 +706,7 @@ void VentanaPrincipal::cargarEjemplo() {
     int destino = 0;
     grafo_.cargarEjemplo(origen, destino);
     limpiarFiltros();
+    sincronizarTipo();
     refrescarCombos();
     {
         const QSignalBlocker b1(origen_);
