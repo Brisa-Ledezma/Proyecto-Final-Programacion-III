@@ -2,9 +2,11 @@
 
 // ============================================================
 //  Grafo.h
-//  Modelo del grafo: nodos (con nombre y posición) y
+//  Modelo del grafo: nodos (nombre numérico y posición) y
 //  aristas (dirigidas con un peso, o no dirigidas con peso de
 //  ida y de vuelta). C++ puro, no depende de Qt.
+//  El nombre de un nodo es un número entero desde 1 (1, 7,
+//  23443...). Ese número decide si el nodo es par o impar.
 // ============================================================
 
 #include <string>
@@ -13,7 +15,7 @@
 namespace grafos {
 
 struct Nodo {
-    std::string nombre;
+    std::string nombre;       // número desde 1, sin ceros a la izquierda
     bool bloqueado = false;   // el camino no puede pasar por acá
     bool obligatorio = false; // el camino tiene que pasar por acá
     double x = 0.0;           // posición en el dibujo
@@ -39,16 +41,16 @@ public:
     const Arista& arista(int i) const;
     Arista& arista(int i);
 
-    // Busca un nodo por nombre (sin distinguir mayúsculas). -1 si no está.
+    // Busca un nodo por nombre. -1 si no está.
     int indiceDe(const std::string& nombre) const;
 
-    // Número que se usa para los filtros par/impar (#1, #2, ...).
-    static int numeroDeNodo(int indice) { return indice + 1; }
+    // Número del nodo (su nombre como entero). Lo usan los filtros par/impar.
+    long numeroDeNodo(int indice) const;
 
     // ---- nodos ----
     // Devuelve "" si el nombre es válido o el mensaje de error.
     std::string validarNombre(const std::string& nombre) const;
-    // Primer nombre libre de la serie A, B, ..., Z, AA, AB, ...
+    // Menor número libre desde 1.
     std::string siguienteNombreLibre() const;
     int agregarNodo(const std::string& nombre, double x, double y);
     void eliminarNodo(int indice);
@@ -65,7 +67,7 @@ public:
     // Grafo precargado de ejemplo. Devuelve origen y destino sugeridos.
     void cargarEjemplo(int& origenSugerido, int& destinoSugerido);
 
-    static const int LARGO_MAXIMO_NOMBRE = 8;
+    static const int LARGO_MAXIMO_NOMBRE = 6; // hasta 999999
 
 private:
     std::vector<Nodo> nodos_;
@@ -79,7 +81,7 @@ private:
     void reindexarAristas(int nodoBorrado, int k);
 };
 
-// Nombre automático número k: 0->A, 25->Z, 26->AA, 27->AB ...
+// Nombre automático número k: 0->"1", 1->"2", ...
 std::string nombreAutomatico(int k);
 
 } // namespace grafos

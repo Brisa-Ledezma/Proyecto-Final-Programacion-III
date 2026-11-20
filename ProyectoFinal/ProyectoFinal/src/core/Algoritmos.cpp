@@ -290,15 +290,13 @@ bool nodoExcluido(const Grafo& g, int indice, const Filtros& f) {
 
 std::string motivoExclusion(const Grafo& g, int indice, const Filtros& f, const std::string& quien) {
     const Nodo& n = g.nodo(indice);
-    const int numero = Grafo::numeroDeNodo(indice);
+    const long numero = g.numeroDeNodo(indice);
     const std::string nombre = quien + (quien.empty() ? "" : " ") + comillas(n.nombre);
     if (n.bloqueado) return nombre + " está bloqueado.";
     if (f.evitarPares && numero % 2 == 0)
-        return nombre + " es el nodo #" + std::to_string(numero) +
-               " (par) y está activo el filtro \"Evitar nodos pares\".";
+        return nombre + " es par y está activo el filtro \"Evitar nodos pares\".";
     if (f.evitarImpares && numero % 2 != 0)
-        return nombre + " es el nodo #" + std::to_string(numero) +
-               " (impar) y está activo el filtro \"Evitar nodos impares\".";
+        return nombre + " es impar y está activo el filtro \"Evitar nodos impares\".";
     return "";
 }
 

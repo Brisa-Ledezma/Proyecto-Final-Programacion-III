@@ -156,7 +156,7 @@ void LienzoGrafo::reconstruir() {
     recorrer(0, n, [&](int j) {
         const grafos::Nodo& datos = grafo_->nodo(j);
         const QString nombre = QString::fromStdString(datos.nombre);
-        auto* item = new NodoItem(j, nombre, grafos::Grafo::numeroDeNodo(j), radioParaNombre(nombre));
+        auto* item = new NodoItem(j, nombre, radioParaNombre(nombre));
         item->setPos(datos.x, datos.y);
         item->habilitarArrastre();
         item->alMoverse = [this](int i, QPointF p) { nodoMoviendose(i, p); };

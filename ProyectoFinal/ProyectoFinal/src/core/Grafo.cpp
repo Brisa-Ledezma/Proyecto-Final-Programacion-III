@@ -1,6 +1,5 @@
 #include "Grafo.h"
 
-#include <cctype>
 
 namespace grafos {
 
@@ -9,39 +8,18 @@ namespace grafos {
 // ------------------------------------------------------------
 namespace {
 
-char aMinuscula(char c) {
-    if (c >= 'A' && c <= 'Z') return static_cast<char>(c - 'A' + 'a');
-    return c;
-}
+bool esDigito(char c) { return c >= '0' && c <= '9'; }
 
-// Compara sin distinguir mayúsculas, carácter por carácter.
-bool igualesSinMayusculas(const std::string& a, const std::string& b, size_t i) {
-    if (a.size() != b.size()) return false;
-    if (i == a.size()) return true;
-    if (aMinuscula(a[i]) != aMinuscula(b[i])) return false;
-    return igualesSinMayusculas(a, b, i + 1);
-}
-
-bool tieneDigito(const std::string& s, size_t i) {
-    if (i == s.size()) return false;
-    if (s[i] >= '0' && s[i] <= '9') return true;
-    return tieneDigito(s, i + 1);
-}
-
-// Letras ASCII o bytes >= 128 (letras con tilde, ñ, en UTF-8).
-bool soloLetras(const std::string& s, size_t i) {
+bool soloDigitos(const std::string& s, size_t i) {
     if (i == s.size()) return true;
-    const unsigned char c = static_cast<unsigned char>(s[i]);
-    if (c < 128 && !std::isalpha(c)) return false;
-    return soloLetras(s, i + 1);
+    if (!esDigito(s[i])) return false;
+    return soloDigitos(s, i + 1);
 }
 
-// Cantidad de caracteres en UTF-8 (no cuenta bytes de continuación).
-int contarCaracteres(const std::string& s, size_t i) {
-    if (i == s.size()) return 0;
-    const unsigned char c = static_cast<unsigned char>(s[i]);
-    const int esInicio = ((c & 0xC0) != 0x80) ? 1 : 0;
-    return esInicio + contarCaracteres(s, i + 1);
+// Convierte "23443" en 23443, dígito por dígito.
+long aNumero(const std::string& s, size_t i, long acumulado) {
+    if (i == s.size()) return acumulado;
+    return aNumero(s, i + 1, acumulado * 10 + (s[i] - '0'));
 }
 
 size_t primerNoEspacio(const std::string& s, size_t i) {
@@ -65,11 +43,7 @@ std::string recortar(const std::string& s) {
 
 } // namespace
 
-std::string nombreAutomatico(int k) {
-    const char letra = static_cast<char>('A' + (k % 26));
-    if (k < 26) return std::string(1, letra);
-    return nombreAutomatico(k / 26 - 1) + letra;
-}
+std::string nombreAutomatico(int k) { return std::to_string(k + 1); }
 
 // ------------------------------------------------------------
 //  Consulta
@@ -83,12 +57,16 @@ Arista& Grafo::arista(int i) { return aristas_[i]; }
 
 int Grafo::buscarNombre(const std::string& nombre, int i) const {
     if (i >= cantidadNodos()) return -1;
-    if (igualesSinMayusculas(nodos_[i].nombre, nombre, 0)) return i;
+    if (nodos_[i].nombre == nombre) return i;
     return buscarNombre(nombre, i + 1);
 }
 
 int Grafo::indiceDe(const std::string& nombre) const {
     return buscarNombre(recortar(nombre), 0);
+}
+
+long Grafo::numeroDeNodo(int indice) const {
+    return aNumero(nodos_[indice].nombre, 0, 0);
 }
 
 // ------------------------------------------------------------
@@ -97,12 +75,12 @@ int Grafo::indiceDe(const std::string& nombre) const {
 std::string Grafo::validarNombre(const std::string& nombreCrudo) const {
     const std::string nombre = recortar(nombreCrudo);
     if (nombre.empty()) return "El nombre del nodo no puede estar vacío.";
-    if (tieneDigito(nombre, 0))
-        return "El nombre no puede tener números (se confundiría con el peso o con el número del nodo).";
-    if (!soloLetras(nombre, 0))
-        return "El nombre solo puede tener letras.";
-    if (contarCaracteres(nombre, 0) > LARGO_MAXIMO_NOMBRE)
-        return "El nombre puede tener como máximo " + std::to_string(LARGO_MAXIMO_NOMBRE) + " letras.";
+    if (!soloDigitos(nombre, 0))
+        return "El nombre del nodo tiene que ser un número (por ejemplo 1, 7 o 23443).";
+    if (nombre[0] == '0')
+        return "El número del nodo empieza en 1 (no se admite el 0 ni ceros a la izquierda).";
+    if (static_cast<int>(nombre.size()) > LARGO_MAXIMO_NOMBRE)
+        return "El número del nodo puede tener como máximo " + std::to_string(LARGO_MAXIMO_NOMBRE) + " cifras.";
     if (indiceDe(nombre) != -1)
         return "Ya existe un nodo llamado \"" + nombre + "\".";
     return "";
@@ -209,28 +187,28 @@ void Grafo::limpiar() {
 void Grafo::cargarEjemplo(int& origenSugerido, int& destinoSugerido) {
     limpiar();
     //          nombre   x     y
-    agregarNodo("A", 90, 240);  // #1
-    agregarNodo("B", 260, 100); // #2
-    agregarNodo("C", 260, 380); // #3
-    agregarNodo("D", 450, 100); // #4
-    agregarNodo("E", 450, 380); // #5
-    agregarNodo("F", 630, 170); // #6
-    agregarNodo("G", 790, 300); // #7
+    agregarNodo("1", 90, 240);
+    agregarNodo("2", 260, 100);
+    agregarNodo("3", 260, 380);
+    agregarNodo("4", 450, 100);
+    agregarNodo("5", 450, 380);
+    agregarNodo("6", 630, 170);
+    agregarNodo("7", 790, 300);
 
     //            desde hasta ida vuelta dirigida
-    agregarArista(0, 1, 2, 2, false); // A — B
-    agregarArista(0, 2, 4, 3, false); // A — C (ida y vuelta distintas)
-    agregarArista(1, 2, 1, 1, false); // B — C
-    agregarArista(1, 3, 3, 3, true);  // B → D
-    agregarArista(2, 4, 6, 5, false); // C — E
-    agregarArista(3, 4, 2, 2, false); // D — E
-    agregarArista(3, 5, 2, 3, false); // D — F
-    agregarArista(4, 5, 4, 4, false); // E — F
-    agregarArista(5, 6, 1, 1, false); // F — G
-    agregarArista(4, 6, 7, 7, true);  // E → G
+    agregarArista(0, 1, 2, 2, false); // 1 — 2
+    agregarArista(0, 2, 4, 3, false); // 1 — 3 (ida y vuelta distintas)
+    agregarArista(1, 2, 1, 1, false); // 2 — 3
+    agregarArista(1, 3, 3, 3, true);  // 2 → 4
+    agregarArista(2, 4, 6, 5, false); // 3 — 5
+    agregarArista(3, 4, 2, 2, false); // 4 — 5
+    agregarArista(3, 5, 2, 3, false); // 4 — 6
+    agregarArista(4, 5, 4, 4, false); // 5 — 6
+    agregarArista(5, 6, 1, 1, false); // 6 — 7
+    agregarArista(4, 6, 7, 7, true);  // 5 → 7
 
-    origenSugerido = 0;  // A
-    destinoSugerido = 6; // G
+    origenSugerido = 0;  // 1
+    destinoSugerido = 6; // 7
 }
 
 } // namespace grafos
