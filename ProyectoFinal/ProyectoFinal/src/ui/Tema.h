@@ -81,6 +81,8 @@ QPushButton#principal:pressed { background: #e04a8a; }
 QPushButton#peligro:hover { border-color: #ff6b6b; color: #ff6b6b; }
 QToolButton#quitar { border: none; color: #6f6580; padding: 2px 8px; background: transparent; font-size: 11pt; }
 QToolButton#quitar:hover { color: #ff6b6b; }
+QToolButton#chipPeso { color: #ff6b6b; background: #2a1a1f; border: 1px solid #5a2a33; border-radius: 9px; padding: 4px 10px; font-weight: 600; }
+QToolButton#chipPeso:hover { border-color: #ff6b6b; }
 
 /* ---------- checkboxes ---------- */
 QCheckBox { spacing: 8px; color: #ede7f2; }

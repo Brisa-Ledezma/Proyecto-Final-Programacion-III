@@ -12,6 +12,7 @@
 
 #include <QMainWindow>
 #include <QPointF>
+#include <vector>
 
 class QCheckBox;
 class QComboBox;
@@ -48,6 +49,9 @@ private:
     // Filtros
     QCheckBox* evitarPares_ = nullptr;
     QCheckBox* evitarImpares_ = nullptr;
+    QSpinBox* pesoABloquear_ = nullptr;
+    QWidget* listaPesos_ = nullptr;          // un botón por peso bloqueado
+    std::vector<int> pesosBloqueados_;
     // Resolver
     QComboBox* origen_ = nullptr;
     QComboBox* destino_ = nullptr;
@@ -72,6 +76,10 @@ private:
     void refrescarTablaNodos();
     void refrescarTablaAristas();
     void cambio();
+    void refrescarPesosBloqueados();
+    void agregarPesoBloqueado();
+    void quitarPesoBloqueado(int peso);
+    void limpiarFiltros();
 
     // ---- acciones ----
     void agregarNodo(QPointF posicion, bool posicionElegida);

@@ -37,6 +37,8 @@ std::string comillas(const std::string& s) { return "\"" + s + "\""; }
 // ============================================================
 //  Construcción de los arcos (aplicando bloqueos y filtros)
 //  Costo de ir u -> v = peso de la arista en ese sentido.
+//  Cada sentido se descarta por separado si su peso está
+//  bloqueado.
 // ============================================================
 void agregarArco(ListaAdyacencia& ady, std::vector<ArcoPlano>& plano,
                  int u, int v, double costo, int arista) {
@@ -48,16 +50,29 @@ void agregarArco(ListaAdyacencia& ady, std::vector<ArcoPlano>& plano,
     plano.push_back({u, v, costo});
 }
 
-void armarArcos(const Grafo& g, const std::vector<bool>& excl, int k,
-                ListaAdyacencia& ady, std::vector<ArcoPlano>& plano) {
+void armarArcos(const Grafo& g, const std::vector<bool>& excl, const Filtros& f, int k,
+                ListaAdyacencia& ady, std::vector<ArcoPlano>& plano, int& cortadosPorPeso) {
     if (k >= g.cantidadAristas()) return;
     const Arista& e = g.arista(k);
     if (!e.bloqueada && !excl[e.desde] && !excl[e.hasta]) {
-        agregarArco(ady, plano, e.desde, e.hasta, static_cast<double>(e.pesoIda), k);
-        if (!e.dirigida)
-            agregarArco(ady, plano, e.hasta, e.desde, static_cast<double>(e.pesoVuelta), k);
+        if (!pesoBloqueado(f, e.pesoIda))
+            agregarArco(ady, plano, e.desde, e.hasta, static_cast<double>(e.pesoIda), k);
+        else
+            cortadosPorPeso++;
+        if (!e.dirigida) {
+            if (!pesoBloqueado(f, e.pesoVuelta))
+                agregarArco(ady, plano, e.hasta, e.desde, static_cast<double>(e.pesoVuelta), k);
+            else
+                cortadosPorPeso++;
+        }
     }
-    armarArcos(g, excl, k + 1, ady, plano);
+    armarArcos(g, excl, f, k + 1, ady, plano, cortadosPorPeso);
+}
+
+bool pesoEnLista(const std::vector<int>& lista, int peso, size_t k) {
+    if (k >= lista.size()) return false;
+    if (lista[k] == peso) return true;
+    return pesoEnLista(lista, peso, k + 1);
 }
 
 bool hayCostoNegativo(const std::vector<ArcoPlano>& plano, size_t k) {
@@ -284,6 +299,8 @@ std::string nombreAlgoritmo(Algoritmo alg) {
     return "Matriz de adyacencia (Floyd-Warshall)";
 }
 
+bool pesoBloqueado(const Filtros& f, int peso) { return pesoEnLista(f.pesosBloqueados, peso, 0); }
+
 bool nodoExcluido(const Grafo& g, int indice, const Filtros& f) {
     return !motivoExclusion(g, indice, f, "").empty();
 }
@@ -336,7 +353,7 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
     // ---------- arcos ----------
     ListaAdyacencia ady(n);
     std::vector<ArcoPlano> plano;
-    armarArcos(g, r.excluido, 0, ady, plano);
+    armarArcos(g, r.excluido, f, 0, ady, plano, r.sentidosPorPeso);
     const bool negativos = hayCostoNegativo(plano, 0);
 
     if (alg == Algoritmo::Dijkstra && negativos)

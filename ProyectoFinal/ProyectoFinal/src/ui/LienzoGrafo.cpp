@@ -230,7 +230,10 @@ void LienzoGrafo::aplicarEstados() {
 
     recorrer(0, m, [&](int k) {
         const grafos::Arista& e = grafo_->arista(k);
-        const bool fuera = excluido[e.desde] || excluido[e.hasta];
+        // Fuera si toca un nodo excluido o si TODOS sus sentidos tienen un peso bloqueado
+        const bool idaCortada = grafos::pesoBloqueado(filtros_, e.pesoIda);
+        const bool vueltaCortada = e.dirigida || grafos::pesoBloqueado(filtros_, e.pesoVuelta);
+        const bool fuera = excluido[e.desde] || excluido[e.hasta] || (idaCortada && vueltaCortada);
         aristas_[k]->setEstado(e.dirigida, e.bloqueada, fuera, sentido[k]);
         etiquetas_[k]->setEstado(e.bloqueada, fuera, sentido[k] != 0);
     });
