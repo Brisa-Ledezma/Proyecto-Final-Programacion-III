@@ -5,17 +5,21 @@ Aplicación de escritorio en **C++17 + Qt 6** (Visual Studio 2022) que calcula e
 ## Funcionalidades
 
 - **Tres algoritmos:** Dijkstra, Bellman-Ford y matriz de adyacencia (Floyd-Warshall). Con Floyd-Warshall se ven la matriz de adyacencia y la de distancias mínimas.
-- **Nodos con nombre y peso entero.** El nombre solo admite letras, nunca números. El peso se suma cada vez que el camino entra al nodo.
-- **Aristas dirigidas** (un solo peso) **y no dirigidas** (peso de ida y peso de vuelta). Todos los pesos son enteros.
-- **Sin límite de nodos.** Se nombran solos (A … Z, AA, AB …) si no se escribe un nombre.
+- **Nodos numerados.** Cada nodo es un número desde 1 (1, 7, 23443 …, hasta 6 cifras). El campo solo deja tipear dígitos y no acepta el 0 ni números repetidos. Los nodos no tienen peso.
+- **Grafo dirigido o no dirigido**, elegido para el grafo entero. No dirigido: cada arista tiene peso de ida y peso de vuelta. Dirigido: un peso por arista. Al cambiar el tipo, `A — B` pasa a `A → B` y `B → A`, y al volver se juntan de nuevo, sin perder pesos.
+- **Pesos enteros.** Los campos de peso solo dejan tipear dígitos y un `-` al principio (ni punto, ni coma, ni `+`).
+- **Sin límite de nodos.** Si no se escribe un número, se usa el menor libre.
 - **Los nodos nunca se superponen.** Al crearlos o al soltarlos después de arrastrarlos se corren al lugar libre más cercano.
 - **Las aristas no pasan por encima de otros nodos.** Se curvan para esquivarlos. El dibujo se arma en capas (aristas → camino → pesos → nodos) para que nada tape a un nodo.
 - **Filtros:**
-  - bloquear una arista (evitar un camino específico),
-  - bloquear un nodo,
-  - evitar los nodos pares o los impares (según su número #1, #2, …). Si el origen o el destino quedan afuera por el filtro, se muestra un error.
-- **Nodos obligatorios:** se prueban todos los órdenes y se queda el más barato.
-- **Recorrido animado** paso a paso sobre el dibujo, más una tabla con el **detalle de cada paso** (peso de la arista, peso del nodo, costo y acumulado).
+  - bloquear una arista puntual o un nodo,
+  - evitar los nodos pares o los impares (según su número),
+  - evitar las aristas de peso par o de peso impar,
+  - bloquear uno o varios pesos de arista (por ejemplo, el 4 corta todas las aristas que pesan 4).
+
+  Los filtros de aristas cortan solo el sentido que tiene ese peso: en una no dirigida con ida 4 y vuelta 3, bloquear el 4 corta la ida y deja la vuelta. Si el origen, el destino o un obligatorio quedan afuera, se muestra un error que dice por qué.
+- **Nodos obligatorios:** se prueban todos los órdenes y se queda el más barato. Un nodo puede estar bloqueado u obligatorio, no las dos cosas.
+- **Recorrido animado** paso a paso sobre el dibujo, más una tabla con el **detalle de cada paso** (peso de cada tramo y costo acumulado).
 - **Tema oscuro con detalles rosas** y scroll de toda la página.
 - **Cargar ejemplo** y **Limpiar todo**.
 - **Sin `for` ni `while`:** todo el código usa solo `if` y recursión.
@@ -41,14 +45,16 @@ No hace falta la extensión *Qt VS Tools*: el proyecto no usa `Q_OBJECT` (las se
 
 | Acción | Cómo |
 |---|---|
-| Agregar nodo | Escribir el nombre (o dejarlo vacío) y tocar **Agregar**, o hacer clic en un lugar vacío del dibujo |
+| Agregar nodo | Escribir el número (o dejarlo vacío) y tocar **Agregar**, o hacer clic en un lugar vacío del dibujo |
 | Mover nodo | Arrastrarlo |
 | Bloquear, marcar como obligatorio, usar como origen o destino, eliminar | Clic derecho sobre el nodo o la arista, o desde las tablas |
 | Zoom | Ctrl + rueda del mouse |
 | Desplazar el dibujo | Arrastrar el fondo |
 | Desplazar la página | Rueda del mouse |
+| Bloquear un peso de arista | Escribirlo en **Filtros → Bloquear aristas de peso** y tocar **Bloquear peso**; se quita con su ✕ |
+| Cambiar entre dirigido y no dirigido | **Aristas → Tipo de grafo** |
 
-El costo de pasar de `u` a `v` es el peso de la arista en ese sentido más el peso del nodo `v`.
+El costo de pasar de `u` a `v` es el peso de la arista en ese sentido.
 
 ## Estructura
 
@@ -65,7 +71,7 @@ ProyectoFinal/
         │   └── Algoritmos.h/.cpp  Dijkstra, Bellman-Ford, Floyd-Warshall, filtros
         └── ui/                  interfaz Qt
             ├── Tema.h           tema oscuro con detalles rosas
-            ├── Controles.h      campos que no cambian con la rueda sin foco
+            ├── Controles.h      campos de solo enteros que no cambian con la rueda sin foco
             ├── ItemsGrafo.*     nodo, arista y etiqueta del dibujo
             ├── LienzoGrafo.*    dibujo interactivo, sin superposiciones
             ├── PanelResultado.* costo, camino, tablas y matrices
@@ -77,3 +83,4 @@ ProyectoFinal/
 - `main`: versiones estables.
 - `develop`: integración.
 - `feature/*`: una rama por funcionalidad, que se mergea a `develop`.
+- `fix/*`, `refactor/*`, `docs/*`: correcciones, reorganizaciones y documentación, con el mismo circuito.
