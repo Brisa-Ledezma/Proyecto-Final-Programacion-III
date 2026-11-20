@@ -8,6 +8,7 @@
 
 #include <QAbstractItemView>
 #include <QAction>
+#include <QApplication>
 #include <QCheckBox>
 #include <QFrame>
 #include <QGridLayout>
@@ -21,20 +22,23 @@
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
+#include <QShortcut>
 #include <QSignalBlocker>
 #include <QTableWidget>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <cmath>
 #include <functional>
 
 using grafos::recorrer;
 
 namespace {
 
-const int ANCHO_COLUMNA_IZQUIERDA = 440;
+const int ANCHO_COLUMNA_IZQUIERDA = 440; // medidas base: se multiplican por tema::escala() con tema::px()
 const int ALTO_LIENZO = 440;
 const int ALTO_FILA_TABLA = 44;
+const int MAXIMO_DESHACER = 100; // ediciones que se pueden deshacer
 
 QString aQString(const std::string& s) { return QString::fromStdString(s); }
 
@@ -54,7 +58,7 @@ QLabel* rotulo(const QString& texto) { return conNombre(new QLabel(texto), "rotu
 QSpinBox* crearSpin(int valor) {
     auto* s = new SpinSinRueda;
     s->setValue(valor);
-    s->setMinimumWidth(80);
+    s->setMinimumWidth(tema::px(80));
     return s;
 }
 
@@ -62,7 +66,7 @@ QSpinBox* spinDeTabla(int valor) {
     auto* s = new SpinSinRueda;
     s->setObjectName(QStringLiteral("enTabla"));
     s->setValue(valor);
-    s->setFixedWidth(76);
+    s->setFixedWidth(tema::px(76));
     return s;
 }
 
@@ -80,7 +84,7 @@ QTableWidget* crearTabla(const QStringList& columnas, int columnaElastica) {
     t->setHorizontalHeaderLabels(columnas);
     t->verticalHeader()->hide();
     t->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    t->verticalHeader()->setDefaultSectionSize(ALTO_FILA_TABLA);
+    t->verticalHeader()->setDefaultSectionSize(tema::px(ALTO_FILA_TABLA));
     t->setShowGrid(false);
     t->setEditTriggers(QAbstractItemView::NoEditTriggers);
     t->setSelectionMode(QAbstractItemView::NoSelection);
@@ -95,7 +99,9 @@ QTableWidget* crearTabla(const QStringList& columnas, int columnaElastica) {
 
 // Alto exacto para mostrar todas las filas, sin barra interna.
 void ajustarAltoTabla(QTableWidget* t) {
-    const int alto = t->horizontalHeader()->sizeHint().height() + ALTO_FILA_TABLA * t->rowCount() + 4;
+    const int fila = tema::px(ALTO_FILA_TABLA);
+    t->verticalHeader()->setDefaultSectionSize(fila);
+    const int alto = t->horizontalHeader()->sizeHint().height() + fila * t->rowCount() + 4;
     t->setFixedHeight(alto);
     t->setVisible(t->rowCount() > 0);
 }
@@ -134,7 +140,44 @@ void llenarCombo(QComboBox* combo, const grafos::Grafo& g, int indicePorDefecto)
 VentanaPrincipal::VentanaPrincipal(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle(QStringLiteral("Caminos en grafos — Programación III"));
     construirInterfaz();
+    crearAtajosDeZoom();
+    // Ctrl + Z: si el foco está en un campo de texto, ahí deshace lo tipeado; si no, deshace la edición del grafo
+    auto* atajoDeshacer = new QShortcut(QKeySequence::Undo, this);
+    connect(atajoDeshacer, &QShortcut::activated, this, [this]() { deshacer(); });
     refrescarTodo();
+}
+
+// ============================================================
+//  Zoom de la letra: Ctrl + (o Ctrl =) agranda, Ctrl - achica, Ctrl 0 vuelve al tamaño inicial
+// ============================================================
+void VentanaPrincipal::crearAtajosDeZoom() {
+    const auto atajo = [this](const QKeySequence& teclas, std::function<void()> accion) {
+        auto* a = new QShortcut(teclas, this);
+        a->setContext(Qt::ApplicationShortcut);
+        connect(a, &QShortcut::activated, this, accion);
+    };
+    const auto mas = [this]() { cambiarEscala(tema::escala() + tema::PASO_ESCALA); };
+    const auto menos = [this]() { cambiarEscala(tema::escala() - tema::PASO_ESCALA); };
+    atajo(QKeySequence(Qt::CTRL | Qt::Key_Plus), mas);
+    atajo(QKeySequence(Qt::CTRL | Qt::Key_Equal), mas); // en teclados donde "+" necesita Shift
+    atajo(QKeySequence(Qt::CTRL | Qt::Key_Minus), menos);
+    atajo(QKeySequence(Qt::CTRL | Qt::Key_0), [this]() { cambiarEscala(tema::ESCALA_INICIAL); });
+}
+
+void VentanaPrincipal::cambiarEscala(double nueva) {
+    nueva = std::round(nueva * 10.0) / 10.0; // evita acumular errores de decimales
+    if (nueva < tema::ESCALA_MINIMA) nueva = tema::ESCALA_MINIMA;
+    if (nueva > tema::ESCALA_MAXIMA) nueva = tema::ESCALA_MAXIMA;
+    const double previa = tema::escala();
+    if (std::abs(nueva - previa) < 1e-6) return;
+
+    qApp->setProperty("escalaUI", nueva);
+    qApp->setStyleSheet(tema::hojaDeEstilo(qApp->property("carpetaIconos").toString(), nueva));
+    izquierda_->setFixedWidth(tema::px(ANCHO_COLUMNA_IZQUIERDA));
+    refrescarTablaNodos();   // vuelven a calcular el alto de filas y el ancho de los campos
+    refrescarTablaAristas();
+    lienzo_->escalarVista(nueva / previa); // el dibujo (nodos y números) crece con la letra
+    if (calculado_) calcular(false);       // las tablas del resultado se rearman con la nueva escala
 }
 
 QFrame* VentanaPrincipal::tarjeta(const QString& titulo, QVBoxLayout*& contenido) {
@@ -173,7 +216,8 @@ void VentanaPrincipal::construirInterfaz() {
     columnas->setSpacing(22);
 
     auto* izquierda = new QWidget;
-    izquierda->setFixedWidth(ANCHO_COLUMNA_IZQUIERDA);
+    izquierda_ = izquierda;
+    izquierda->setFixedWidth(tema::px(ANCHO_COLUMNA_IZQUIERDA));
     auto* capaIzquierda = new QVBoxLayout(izquierda);
     capaIzquierda->setContentsMargins(0, 0, 0, 0);
     capaIzquierda->setSpacing(18);
@@ -237,6 +281,9 @@ QFrame* VentanaPrincipal::tarjetaLienzo() {
     leyenda->addWidget(punto(tema::bloqueado().name(), QStringLiteral("bloqueado (línea punteada)")));
     leyenda->addWidget(punto(tema::tenue().name(), QStringLiteral("filtrado (transparente)")));
     leyenda->addStretch(1);
+    contadorNodos_ = pista(QString());
+    contadorNodos_->setWordWrap(false);
+    leyenda->addWidget(contadorNodos_);
     c->addLayout(leyenda);
 
     connect(botonRepetir, &QPushButton::clicked, this, [this]() { lienzo_->repetirAnimacion(); });
@@ -256,6 +303,8 @@ QFrame* VentanaPrincipal::tarjetaNodos() {
     // Solo un número desde 1: el primer dígito no puede ser 0
     nombreNodo_->setValidator(new QRegularExpressionValidator(
         QRegularExpression(QStringLiteral("([1-9][0-9]{0,%1})?").arg(grafos::Grafo::LARGO_MAXIMO_NOMBRE - 1)), nombreNodo_));
+    nombreNodo_->setMaxLength(grafos::Grafo::LARGO_MAXIMO_NOMBRE);
+    nombreNodo_->setInputMethodHints(Qt::ImhDigitsOnly);
     auto* agregar = new QPushButton(QStringLiteral("Agregar"));
     agregar->setObjectName(QStringLiteral("principal"));
     formulario->addWidget(rotulo(QStringLiteral("NÚMERO DEL NODO")), 0, 0);
@@ -320,6 +369,7 @@ QFrame* VentanaPrincipal::tarjetaAristas() {
 
     // El tipo es del grafo entero: convierte todas las aristas
     connect(tipoArista_, &QComboBox::currentIndexChanged, this, [this](int indice) {
+        guardarParaDeshacer();
         grafo_.setDirigido(indice == 1);
         refrescarTodo();
     });
@@ -330,8 +380,8 @@ QFrame* VentanaPrincipal::tarjetaAristas() {
 QFrame* VentanaPrincipal::tarjetaFiltros() {
     QVBoxLayout* c = nullptr;
     QFrame* marco = tarjeta(QStringLiteral("Filtros"), c);
-    evitarPares_ = new QCheckBox(QStringLiteral("Evitar nodos pares  (2, 4, 6…)"));
-    evitarImpares_ = new QCheckBox(QStringLiteral("Evitar nodos impares  (1, 3, 5…)"));
+    evitarPares_ = new QCheckBox(QStringLiteral("Evitar nodos pares  (nodo n.º 2, 4, 6…)"));
+    evitarImpares_ = new QCheckBox(QStringLiteral("Evitar nodos impares  (nodo n.º 1, 3, 5…)"));
     evitarAristasPares_ = new QCheckBox(QStringLiteral("Evitar aristas de peso par  (2, 4, 6…)"));
     evitarAristasImpares_ = new QCheckBox(QStringLiteral("Evitar aristas de peso impar  (1, 3, 5…)"));
     c->addWidget(rotulo(QStringLiteral("NODOS")));
@@ -340,6 +390,10 @@ QFrame* VentanaPrincipal::tarjetaFiltros() {
     c->addWidget(rotulo(QStringLiteral("ARISTAS")));
     c->addWidget(evitarAristasPares_);
     c->addWidget(evitarAristasImpares_);
+    soloPositivos_ = new QCheckBox(QStringLiteral("Solo pesos positivos  (el 0 no cuenta)"));
+    soloNegativos_ = new QCheckBox(QStringLiteral("Solo pesos negativos  (el 0 no cuenta)"));
+    c->addWidget(soloPositivos_);
+    c->addWidget(soloNegativos_);
 
     auto* fila = new QGridLayout;
     fila->setHorizontalSpacing(10);
@@ -355,9 +409,15 @@ QFrame* VentanaPrincipal::tarjetaFiltros() {
     listaPesos_->setLayout(new QGridLayout);
     listaPesos_->layout()->setContentsMargins(0, 0, 0, 0);
     c->addWidget(listaPesos_);
-    c->addWidget(pista(QStringLiteral("Los filtros de aristas (par, impar o un peso) cortan cada sentido que pesa eso: en "
+    c->addWidget(pista(QStringLiteral("Los filtros de aristas (par, impar, positivo, negativo o un peso) cortan cada sentido que pesa eso: en "
                                       "una no dirigida con ida 4 y vuelta 3, evitar pares corta solo la ida. Para evitar un "
                                       "nodo o una arista puntual, tildá «Bloq.» en su tabla o hacé clic derecho en el dibujo.")));
+
+    filtrosActivos_ = pista(QString());
+    c->addWidget(filtrosActivos_);
+    quitarFiltros_ = new QPushButton(QStringLiteral("Quitar filtros"));
+    c->addWidget(quitarFiltros_);
+    connect(quitarFiltros_, &QPushButton::clicked, this, [this]() { quitarFiltros(); });
 
     const auto alCambiar = [this](bool) {
         lienzo_->setFiltros(filtros());
@@ -367,6 +427,23 @@ QFrame* VentanaPrincipal::tarjetaFiltros() {
     connect(evitarImpares_, &QCheckBox::toggled, this, alCambiar);
     connect(evitarAristasPares_, &QCheckBox::toggled, this, alCambiar);
     connect(evitarAristasImpares_, &QCheckBox::toggled, this, alCambiar);
+    // Solo positivos y solo negativos son excluyentes: tildar uno destilda el otro
+    connect(soloPositivos_, &QCheckBox::toggled, this, [this](bool v) {
+        if (v) {
+            const QSignalBlocker b(soloNegativos_);
+            soloNegativos_->setChecked(false);
+        }
+        lienzo_->setFiltros(filtros());
+        cambio();
+    });
+    connect(soloNegativos_, &QCheckBox::toggled, this, [this](bool v) {
+        if (v) {
+            const QSignalBlocker b(soloPositivos_);
+            soloPositivos_->setChecked(false);
+        }
+        lienzo_->setFiltros(filtros());
+        cambio();
+    });
     connect(bloquearPeso, &QPushButton::clicked, this, [this]() { agregarPesoBloqueado(); });
     refrescarPesosBloqueados();
     return marco;
@@ -384,7 +461,7 @@ QFrame* VentanaPrincipal::tarjetaResolver() {
     algoritmo_ = new ComboSinRueda;
     algoritmo_->addItem(QStringLiteral("Dijkstra"));
     algoritmo_->addItem(QStringLiteral("Bellman-Ford"));
-    algoritmo_->addItem(QStringLiteral("Matriz de adyacencia (Floyd-Warshall)"));
+    algoritmo_->addItem(QStringLiteral("Matriz de adyacencia"));
     formulario->addWidget(rotulo(QStringLiteral("ORIGEN")), 0, 0);
     formulario->addWidget(rotulo(QStringLiteral("DESTINO")), 0, 1);
     formulario->addWidget(origen_, 1, 0);
@@ -407,9 +484,13 @@ QFrame* VentanaPrincipal::tarjetaResolver() {
 
     auto* fila = new QHBoxLayout;
     fila->setSpacing(10);
+    deshacer_ = new QPushButton(QStringLiteral("Deshacer"));
+    deshacer_->setEnabled(false);
+    deshacer_->setToolTip(QStringLiteral("Deshace la última edición del grafo (Ctrl + Z)"));
     auto* ejemplo = new QPushButton(QStringLiteral("Cargar ejemplo"));
     auto* limpiar = new QPushButton(QStringLiteral("Limpiar todo"));
     limpiar->setObjectName(QStringLiteral("peligro"));
+    fila->addWidget(deshacer_, 1);
     fila->addWidget(ejemplo, 1);
     fila->addWidget(limpiar, 1);
     c->addLayout(fila);
@@ -424,6 +505,7 @@ QFrame* VentanaPrincipal::tarjetaResolver() {
     connect(destino_, &QComboBox::currentIndexChanged, this, alCambiarExtremos);
     connect(algoritmo_, &QComboBox::currentIndexChanged, this, [this](int) { cambio(); });
     connect(calcularBoton, &QPushButton::clicked, this, [this]() { calcular(true); });
+    connect(deshacer_, &QPushButton::clicked, this, [this]() { deshacer(); });
     connect(ejemplo, &QPushButton::clicked, this, [this]() { cargarEjemplo(); });
     connect(limpiar, &QPushButton::clicked, this, [this]() { limpiarTodo(); });
     return marco;
@@ -471,7 +553,11 @@ void VentanaPrincipal::refrescarTablaNodos() {
     tablaNodos_->setRowCount(n);
     recorrer(0, n, [&](int i) {
         const grafos::Nodo& nodo = grafo_.nodo(i);
-        tablaNodos_->setItem(i, 0, itemTexto(aQString(nodo.nombre)));
+        // El filtro par/impar usa la posición del nodo (n.º), que puede no coincidir con su nombre
+        const QString nombre = aQString(nodo.nombre);
+        const QString posicion = QString::number(i + 1);
+        tablaNodos_->setItem(i, 0, itemTexto(nombre == posicion ? nombre
+                                                                : nombre + QStringLiteral("   (n.º ") + posicion + QStringLiteral(")")));
 
         auto* bloqueado = new QCheckBox;
         auto* obligatorio = new QCheckBox;
@@ -479,6 +565,7 @@ void VentanaPrincipal::refrescarTablaNodos() {
         obligatorio->setChecked(nodo.obligatorio);
         // Uno u otro: tildar uno destilda el otro
         connect(bloqueado, &QCheckBox::toggled, this, [this, i, obligatorio](bool v) {
+            guardarParaDeshacer();
             grafo_.setBloqueado(i, v);
             if (v) {
                 const QSignalBlocker b(obligatorio);
@@ -488,6 +575,7 @@ void VentanaPrincipal::refrescarTablaNodos() {
             cambio();
         });
         connect(obligatorio, &QCheckBox::toggled, this, [this, i, bloqueado](bool v) {
+            guardarParaDeshacer();
             grafo_.setObligatorio(i, v);
             if (v) {
                 const QSignalBlocker b(bloqueado);
@@ -519,6 +607,7 @@ void VentanaPrincipal::refrescarTablaAristas() {
 
         auto* ida = spinDeTabla(e.pesoIda);
         connect(ida, &QSpinBox::valueChanged, this, [this, k](int v) {
+            guardarParaDeshacer();
             grafos::Arista& a = grafo_.arista(k);
             a.pesoIda = v;
             if (a.dirigida) a.pesoVuelta = v;
@@ -535,6 +624,7 @@ void VentanaPrincipal::refrescarTablaAristas() {
         } else {
             auto* vuelta = spinDeTabla(e.pesoVuelta);
             connect(vuelta, &QSpinBox::valueChanged, this, [this, k](int v) {
+                guardarParaDeshacer();
                 grafo_.arista(k).pesoVuelta = v;
                 lienzo_->reconstruir();
                 cambio();
@@ -545,6 +635,7 @@ void VentanaPrincipal::refrescarTablaAristas() {
         auto* bloqueada = new QCheckBox;
         bloqueada->setChecked(e.bloqueada);
         connect(bloqueada, &QCheckBox::toggled, this, [this, k](bool v) {
+            guardarParaDeshacer();
             grafo_.arista(k).bloqueada = v;
             lienzo_->setFiltros(filtros());
             cambio();
@@ -562,6 +653,7 @@ void VentanaPrincipal::refrescarTablaAristas() {
 
 // Después del primer cálculo, cualquier cambio vuelve a calcular (como el prototipo).
 void VentanaPrincipal::cambio() {
+    actualizarEstado();
     if (calculado_) {
         calcular(false);
         return;
@@ -583,12 +675,15 @@ void VentanaPrincipal::agregarNodo(QPointF posicion, bool posicionElegida) {
     const double radio = radioParaNombre(aQString(nombre));
     const QPointF deseada = posicionElegida ? posicion : lienzo_->centroVisible();
     const QPointF libre = lienzo_->posicionLibre(deseada, radio, -1); // nunca encima de otro nodo
+    guardarParaDeshacer();
     grafo_.agregarNodo(nombre, libre.x(), libre.y());
     nombreNodo_->clear();
     refrescarTodo();
 }
 
 void VentanaPrincipal::agregarArista() {
+    pesoIda_->interpretText(); // toma lo tipeado aunque el campo siga con el foco
+    pesoVuelta_->interpretText();
     const int a = desde_->currentIndex();
     const int b = hasta_->currentIndex();
     const bool dirigida = grafo_.dirigido();
@@ -597,16 +692,19 @@ void VentanaPrincipal::agregarArista() {
         QMessageBox::warning(this, QStringLiteral("No se puede agregar la arista"), aQString(error));
         return;
     }
+    guardarParaDeshacer();
     grafo_.agregarArista(a, b, pesoIda_->value(), pesoVuelta_->value(), dirigida);
     refrescarTodo();
 }
 
 void VentanaPrincipal::eliminarNodo(int indice) {
+    guardarParaDeshacer();
     grafo_.eliminarNodo(indice);
     refrescarTodo();
 }
 
 void VentanaPrincipal::eliminarArista(int indice) {
+    guardarParaDeshacer();
     grafo_.eliminarArista(indice);
     refrescarTodo();
 }
@@ -618,6 +716,8 @@ grafos::Filtros VentanaPrincipal::filtros() const {
     f.pesosBloqueados = pesosBloqueados_;
     f.evitarAristasPares = evitarAristasPares_->isChecked();
     f.evitarAristasImpares = evitarAristasImpares_->isChecked();
+    f.soloPositivos = soloPositivos_->isChecked();
+    f.soloNegativos = soloNegativos_->isChecked();
     return f;
 }
 
@@ -679,17 +779,87 @@ void VentanaPrincipal::limpiarFiltros() {
     const QSignalBlocker b2(evitarImpares_);
     const QSignalBlocker b3(evitarAristasPares_);
     const QSignalBlocker b4(evitarAristasImpares_);
+    const QSignalBlocker b5(soloPositivos_);
+    const QSignalBlocker b6(soloNegativos_);
     evitarPares_->setChecked(false);
     evitarImpares_->setChecked(false);
     evitarAristasPares_->setChecked(false);
     evitarAristasImpares_->setChecked(false);
+    soloPositivos_->setChecked(false);
+    soloNegativos_->setChecked(false);
     pesosBloqueados_.clear();
     refrescarPesosBloqueados();
 }
 
+// "Quitar filtros": apaga todos los filtros y desbloquea los nodos y aristas que estaban bloqueados
+void VentanaPrincipal::quitarFiltros() {
+    limpiarFiltros();
+    recorrer(0, grafo_.cantidadNodos(), [&](int i) { grafo_.setBloqueado(i, false); });
+    recorrer(0, grafo_.cantidadAristas(), [&](int k) { grafo_.arista(k).bloqueada = false; });
+    refrescarTodo(); // vuelve a dibujar las tablas con las casillas «Bloq.» destildadas
+}
+
+// Contador de nodos y resumen de filtros activos (se llama en cada cambio)
+void VentanaPrincipal::actualizarEstado() {
+    const int n = grafo_.cantidadNodos();
+    contadorNodos_->setText(n == 1 ? QStringLiteral("1 nodo en el lienzo")
+                                   : QStringLiteral("%1 nodos en el lienzo").arg(n));
+
+    QStringList activos;
+    if (evitarPares_->isChecked()) activos << QStringLiteral("nodos pares");
+    if (evitarImpares_->isChecked()) activos << QStringLiteral("nodos impares");
+    if (evitarAristasPares_->isChecked()) activos << QStringLiteral("aristas pares");
+    if (evitarAristasImpares_->isChecked()) activos << QStringLiteral("aristas impares");
+    if (soloPositivos_->isChecked()) activos << QStringLiteral("solo positivos");
+    if (soloNegativos_->isChecked()) activos << QStringLiteral("solo negativos");
+    recorrer(0, static_cast<int>(pesosBloqueados_.size()),
+             [&](int i) { activos << QStringLiteral("peso %1").arg(pesosBloqueados_[i]); });
+    recorrer(0, n, [&](int i) {
+        if (grafo_.nodo(i).bloqueado) activos << QStringLiteral("nodo ") + aQString(grafo_.nodo(i).nombre);
+    });
+    recorrer(0, grafo_.cantidadAristas(), [&](int k) {
+        if (grafo_.arista(k).bloqueada) activos << QStringLiteral("arista ") + aQString(grafo_.describirArista(k));
+    });
+    filtrosActivos_->setText(activos.isEmpty() ? QStringLiteral("Filtros activos: ninguno")
+                                               : QStringLiteral("Filtros activos: ") + activos.join(QStringLiteral("  ·  ")));
+    quitarFiltros_->setEnabled(!activos.isEmpty());
+}
+
+// ---- Deshacer ----
+void VentanaPrincipal::guardarParaDeshacer() {
+    Estado e;
+    e.grafo = grafo_;
+    e.origen = origen_->currentIndex();
+    e.destino = destino_->currentIndex();
+    historial_.push_back(e);
+    if (static_cast<int>(historial_.size()) > MAXIMO_DESHACER) historial_.erase(historial_.begin());
+    deshacer_->setEnabled(true);
+}
+
+void VentanaPrincipal::deshacer() {
+    if (historial_.empty()) return;
+    const Estado e = historial_.back();
+    historial_.pop_back();
+    grafo_ = e.grafo;
+    if (grafo_.cantidadNodos() == 0) {
+        calculado_ = false;
+        resultado_->mostrarVacio();
+    }
+    refrescarTodo();
+    {
+        const QSignalBlocker b1(origen_);
+        const QSignalBlocker b2(destino_);
+        if (e.origen >= 0 && e.origen < origen_->count()) origen_->setCurrentIndex(e.origen);
+        if (e.destino >= 0 && e.destino < destino_->count()) destino_->setCurrentIndex(e.destino);
+    }
+    lienzo_->setOrigenDestino(origen_->currentIndex(), destino_->currentIndex());
+    cambio();
+    deshacer_->setEnabled(!historial_.empty());
+}
+
 grafos::Algoritmo VentanaPrincipal::algoritmoElegido() const {
     if (algoritmo_->currentIndex() == 1) return grafos::Algoritmo::BellmanFord;
-    if (algoritmo_->currentIndex() == 2) return grafos::Algoritmo::Floyd;
+    if (algoritmo_->currentIndex() == 2) return grafos::Algoritmo::MatrizAdyacencia;
     return grafos::Algoritmo::Dijkstra;
 }
 
@@ -704,6 +874,7 @@ void VentanaPrincipal::calcular(bool animar) {
 void VentanaPrincipal::cargarEjemplo() {
     int origen = 0;
     int destino = 0;
+    guardarParaDeshacer();
     grafo_.cargarEjemplo(origen, destino);
     limpiarFiltros();
     sincronizarTipo();
@@ -729,6 +900,7 @@ void VentanaPrincipal::limpiarTodo() {
                                                      QStringLiteral("¿Borrar todos los nodos, aristas y el resultado?"));
         if (respuesta != QMessageBox::Yes) return;
     }
+    guardarParaDeshacer();
     grafo_.limpiar();
     calculado_ = false;
     limpiarFiltros();
@@ -759,6 +931,7 @@ void VentanaPrincipal::menuNodo(int indice, QPoint posicionPantalla) {
     if (elegida == nullptr) return;
     if (elegida == comoOrigen) { origen_->setCurrentIndex(indice); return; }
     if (elegida == comoDestino) { destino_->setCurrentIndex(indice); return; }
+    if (elegida == bloquear || elegida == obligatorio) guardarParaDeshacer();
     if (elegida == bloquear) grafo_.setBloqueado(indice, !nodo.bloqueado);
     if (elegida == obligatorio) grafo_.setObligatorio(indice, !nodo.obligatorio);
     const bool borrar = elegida == eliminar;
@@ -780,6 +953,7 @@ void VentanaPrincipal::menuArista(int indice, QPoint posicionPantalla) {
 
     QAction* elegida = menu.exec(posicionPantalla);
     if (elegida == nullptr) return;
+    if (elegida == bloquear) guardarParaDeshacer();
     if (elegida == bloquear) grafo_.arista(indice).bloqueada = !arista.bloqueada;
     const bool borrar = elegida == eliminar;
     QTimer::singleShot(0, this, [this, indice, borrar]() {

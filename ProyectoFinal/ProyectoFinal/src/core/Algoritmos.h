@@ -2,7 +2,7 @@
 
 // ============================================================
 //  Algoritmos.h
-//  Camino mínimo con Dijkstra, Bellman-Ford o Floyd-Warshall
+//  Camino mínimo con Dijkstra, Bellman-Ford o la matriz de adyacencia
 //  (matriz de adyacencia), aplicando filtros (bloqueos,
 //  nodos pares/impares, pesos de arista) y nodos obligatorios.
 //  Todo implementado con if + recursión, sin for ni while.
@@ -18,16 +18,20 @@ namespace grafos {
 
 const double INFINITO = std::numeric_limits<double>::infinity();
 
-enum class Algoritmo { Dijkstra, BellmanFord, Floyd };
+enum class Algoritmo { Dijkstra, BellmanFord, MatrizAdyacencia };
 
 struct Filtros {
-    bool evitarPares = false;   // excluye los nodos 2, 4, 6 ... (según su número)
+    bool evitarPares = false;   // excluye los nodos n.º 2, 4, 6 ... (posición del nodo, no su nombre)
     bool evitarImpares = false; // excluye los nodos 1, 3, 5 ...
     // Pesos bloqueados: no se usa ningún sentido de arista que pese esto.
     // En una no dirigida con ida 4 y vuelta 2, bloquear el 4 corta solo la ida.
     std::vector<int> pesosBloqueados;
     bool evitarAristasPares = false;   // corta los sentidos de arista con peso par (0, 2, -4 ...)
     bool evitarAristasImpares = false; // corta los sentidos de arista con peso impar (1, 3, -5 ...)
+    // Signo del peso (excluyentes entre sí). El 0 no es ni positivo ni negativo: con cualquiera
+    // de los dos filtros activos, un sentido de arista con peso 0 queda cortado.
+    bool soloPositivos = false; // solo se usan sentidos de arista con peso > 0
+    bool soloNegativos = false; // solo se usan sentidos de arista con peso < 0
 };
 
 // ¿Un sentido de arista con ese peso queda cortado (lista de pesos o paridad)?
@@ -55,9 +59,8 @@ struct Resultado {
     std::vector<bool> excluido;       // nodos sacados por bloqueo o filtro
     int sentidosPorPeso = 0;          // sentidos de arista cortados por un peso bloqueado
 
-    // Solo para Floyd-Warshall
+    // Se arma con cualquier algoritmo
     std::vector<std::vector<double>> matrizAdyacencia;
-    std::vector<std::vector<double>> matrizDistancias;
 };
 
 const int MAXIMO_OBLIGATORIOS = 8;

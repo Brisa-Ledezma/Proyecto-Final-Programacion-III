@@ -19,6 +19,7 @@ class QComboBox;
 class QSpinBox;
 class QFrame;
 class QLabel;
+class QPushButton;
 class QLineEdit;
 class QTableWidget;
 class QVBoxLayout;
@@ -51,6 +52,8 @@ private:
     QCheckBox* evitarImpares_ = nullptr;
     QCheckBox* evitarAristasPares_ = nullptr;
     QCheckBox* evitarAristasImpares_ = nullptr;
+    QCheckBox* soloPositivos_ = nullptr;
+    QCheckBox* soloNegativos_ = nullptr;
     QSpinBox* pesoABloquear_ = nullptr;
     QWidget* listaPesos_ = nullptr;          // un botón por peso bloqueado
     std::vector<int> pesosBloqueados_;
@@ -59,6 +62,18 @@ private:
     QComboBox* destino_ = nullptr;
     QComboBox* algoritmo_ = nullptr;
     QCheckBox* animar_ = nullptr;
+    QWidget* izquierda_ = nullptr; // columna izquierda: su ancho acompaña a la letra
+    QLabel* filtrosActivos_ = nullptr;  // resumen de lo que está filtrado
+    QPushButton* quitarFiltros_ = nullptr;
+    QPushButton* deshacer_ = nullptr;
+    QLabel* contadorNodos_ = nullptr;   // "N nodos en el lienzo"
+    // Deshacer: cada edición del grafo guarda cómo estaba antes
+    struct Estado {
+        grafos::Grafo grafo;
+        int origen = 0;
+        int destino = 0;
+    };
+    std::vector<Estado> historial_;
     // Derecha
     LienzoGrafo* lienzo_ = nullptr;
     PanelResultado* resultado_ = nullptr;
@@ -83,6 +98,14 @@ private:
     void agregarPesoBloqueado();
     void quitarPesoBloqueado(int peso);
     void limpiarFiltros();
+    void quitarFiltros();          // botón "Quitar filtros": filtros, pesos, nodos y aristas bloqueados
+    void actualizarEstado();       // contador de nodos y línea "Filtros activos"
+    void guardarParaDeshacer();    // llamar justo ANTES de modificar el grafo
+    void deshacer();
+
+    // ---- zoom de la letra (Ctrl + / Ctrl - / Ctrl 0) ----
+    void crearAtajosDeZoom();
+    void cambiarEscala(double nueva);
 
     // ---- acciones ----
     void agregarNodo(QPointF posicion, bool posicionElegida);

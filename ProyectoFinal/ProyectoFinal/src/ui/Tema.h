@@ -7,9 +7,27 @@
 // ============================================================
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QString>
+#include <QVariant>
+#include <QtGlobal>
 
 namespace tema {
+
+// ---- escala de la letra (Ctrl + / Ctrl - / Ctrl 0) ----
+// 1.0 = tamaños base de la hoja de estilo (10 pt de texto general).
+const double ESCALA_INICIAL = 1.1; // un poco más grande que el base, para que se lea bien
+const double ESCALA_MINIMA = 0.8;
+const double ESCALA_MAXIMA = 2.4;
+const double PASO_ESCALA = 0.1;
+
+// Escala actual: la guarda VentanaPrincipal como propiedad de la aplicación.
+inline double escala() {
+    const QVariant v = QCoreApplication::instance()->property("escalaUI");
+    return v.isValid() ? v.toDouble() : ESCALA_INICIAL;
+}
+// Tamaño en píxeles que acompaña a la letra: 44 px base -> crece junto con la escala.
+inline int px(int base) { return qRound(base * escala()); }
 
 // ---- superficies ----
 inline QColor fondo()       { return QColor("#121016"); } // fondo de la ventana
@@ -28,10 +46,10 @@ inline QColor bloqueado()   { return QColor("#ff6b6b"); } // rojo
 
 // Hoja de estilo. "iconos" es la carpeta con check.png y flecha.png
 // (se generan al iniciar, ver ProyectoFinal.cpp).
-inline QString hojaDeEstilo(const QString& iconos) {
+inline QString hojaDeEstilo(const QString& iconos, double escala = ESCALA_INICIAL) {
     QString css = QString::fromUtf8(R"(
 * { font-family: "Segoe UI"; }
-QWidget { color: #ede7f2; font-size: 10pt; }
+QWidget { color: #ede7f2; font-size: @F10@pt; }
 QMainWindow, QWidget#fondo, QScrollArea#scrollPagina, QWidget#pagina { background: #121016; }
 QScrollArea { border: none; background: transparent; }
 QScrollArea > QWidget > QWidget { background: transparent; }
@@ -41,16 +59,16 @@ QFrame#tarjeta { background: #1b1821; border: 1px solid #2a2532; border-radius: 
 QFrame#tarjeta QLabel, QFrame#tarjeta QCheckBox { background: transparent; }
 
 /* ---------- textos ---------- */
-QLabel#titulo { font-size: 20pt; font-weight: 700; color: #ede7f2; }
-QLabel#subtitulo { color: #9b90a8; font-size: 10pt; }
-QLabel#etiquetaMateria { color: #ff5fa2; background: #3b1a2d; border-radius: 10px; padding: 3px 10px; font-size: 9pt; font-weight: 600; }
-QLabel#tituloTarjeta { font-size: 12pt; font-weight: 600; color: #ede7f2; }
-QLabel#rotulo { color: #9b90a8; font-size: 9pt; font-weight: 600; }
-QLabel#pista { color: #9b90a8; font-size: 9pt; }
-QLabel#costo { color: #ff5fa2; font-size: 30pt; font-weight: 700; }
-QLabel#error { color: #ff6b6b; font-weight: 600; font-size: 10pt; }
+QLabel#titulo { font-size: @F20@pt; font-weight: 700; color: #ede7f2; }
+QLabel#subtitulo { color: #9b90a8; font-size: @F10@pt; }
+QLabel#etiquetaMateria { color: #ff5fa2; background: #3b1a2d; border-radius: 10px; padding: 3px 10px; font-size: @F9@pt; font-weight: 600; }
+QLabel#tituloTarjeta { font-size: @F12@pt; font-weight: 600; color: #ede7f2; }
+QLabel#rotulo { color: #9b90a8; font-size: @F9@pt; font-weight: 600; }
+QLabel#pista { color: #9b90a8; font-size: @F9@pt; }
+QLabel#costo { color: #ff5fa2; font-size: @F30@pt; font-weight: 700; }
+QLabel#error { color: #ff6b6b; font-weight: 600; font-size: @F10@pt; }
 QLabel#chip { color: #ff5fa2; background: #3b1a2d; border: 1px solid #5a2945; border-radius: 9px; padding: 4px 12px; font-weight: 600; }
-QLabel#flechaChip { color: #5f566b; font-size: 11pt; }
+QLabel#flechaChip { color: #5f566b; font-size: @F11@pt; }
 
 /* ---------- campos ---------- */
 QLineEdit, QSpinBox, QComboBox {
@@ -79,7 +97,7 @@ QPushButton#principal { background: #ff5fa2; color: #1a0f16; border: none; }
 QPushButton#principal:hover { background: #ff7cb4; color: #1a0f16; }
 QPushButton#principal:pressed { background: #e04a8a; }
 QPushButton#peligro:hover { border-color: #ff6b6b; color: #ff6b6b; }
-QToolButton#quitar { border: none; color: #6f6580; padding: 2px 8px; background: transparent; font-size: 11pt; }
+QToolButton#quitar { border: none; color: #6f6580; padding: 2px 8px; background: transparent; font-size: @F11@pt; }
 QToolButton#quitar:hover { color: #ff6b6b; }
 QToolButton#chipPeso { color: #ff6b6b; background: #2a1a1f; border: 1px solid #5a2a33; border-radius: 9px; padding: 4px 10px; font-weight: 600; }
 QToolButton#chipPeso:hover { border-color: #ff6b6b; }
@@ -96,7 +114,7 @@ QTableWidget::item { padding: 6px 8px; border-bottom: 1px solid #2a2532; }
 QHeaderView { background: transparent; }
 QHeaderView::section {
     background: transparent; color: #9b90a8; border: none; border-bottom: 1px solid #332d3c;
-    padding: 8px 8px; font-size: 9pt; font-weight: 600;
+    padding: 8px 11px; font-size: @F9@pt; font-weight: 600; /* 11 = 8 de las celdas + 3 de margen del texto: títulos alineados con su contenido */
 }
 QTableCornerButton::section { background: transparent; border: none; }
 
@@ -121,6 +139,14 @@ QToolTip { background: #25212c; color: #ede7f2; border: 1px solid #ff5fa2; borde
 QMessageBox { background: #1b1821; }
 QMessageBox QPushButton { min-width: 80px; }
 )");
+    // Tamaños de letra: cada @FN@ es "N pt" multiplicado por la escala
+    const auto tam = [escala](double base) { return QString::number(base * escala, 'f', 1); };
+    css.replace(QStringLiteral("@F9@"), tam(9));
+    css.replace(QStringLiteral("@F10@"), tam(10));
+    css.replace(QStringLiteral("@F11@"), tam(11));
+    css.replace(QStringLiteral("@F12@"), tam(12));
+    css.replace(QStringLiteral("@F20@"), tam(20));
+    css.replace(QStringLiteral("@F30@"), tam(30));
     css.replace(QStringLiteral("@ICONOS@"), iconos);
     return css;
 }

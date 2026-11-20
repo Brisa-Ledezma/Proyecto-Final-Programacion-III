@@ -45,7 +45,8 @@ public:
     // Busca un nodo por nombre. -1 si no está.
     int indiceDe(const std::string& nombre) const;
 
-    // Número del nodo (su nombre como entero). Lo usan los filtros par/impar.
+    // Número del nodo: su posición en el grafo (1 = primer nodo, 2 = segundo...), no su nombre.
+    // Lo usan los filtros par/impar, así que valen aunque el nombre sea "casa".
     long numeroDeNodo(int indice) const;
 
     // ---- nodos ----

@@ -17,11 +17,12 @@ namespace {
 
 const int MAXIMO_NODOS_EN_MATRIZ = 60; // solo limita lo que se MUESTRA, no el grafo
 const int CHIPS_POR_FILA = 7;
+const int ALTO_ENCABEZADO = 40; // px base de la fila de títulos de las tablas de resultado
 
 QString nombreDe(const grafos::Grafo& g, int i) { return QString::fromStdString(g.nodo(i).nombre); }
 
 QString formato(double v) {
-    if (!(v < grafos::INFINITO)) return QStringLiteral("∞"); // ∞
+    if (!(v < grafos::INFINITO)) return QStringLiteral("INF");
     return QString::number(v, 'g', 10);
 }
 
@@ -53,9 +54,10 @@ QTableWidget* tablaCompacta(int filas, int columnas) {
     t->setFocusPolicy(Qt::NoFocus);
     t->setShowGrid(false);
     t->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    t->horizontalHeader()->setMinimumSectionSize(54);
+    t->horizontalHeader()->setMinimumSectionSize(tema::px(54));
+    t->horizontalHeader()->setFixedHeight(tema::px(ALTO_ENCABEZADO)); // alto conocido: no depende de cuándo se aplica el estilo
     t->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    t->verticalHeader()->setDefaultSectionSize(36);
+    t->verticalHeader()->setDefaultSectionSize(tema::px(36));
     t->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     t->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     return t;
@@ -73,9 +75,10 @@ void celda(QTableWidget* t, int fila, int columna, const QString& texto, bool re
 
 // Alto justo para mostrar todas las filas: la página entera es la que hace scroll.
 void ajustarAlto(QTableWidget* t) {
-    int alto = t->horizontalHeader()->isVisible() ? t->horizontalHeader()->sizeHint().height() : 0;
+    // isHidden() y no isVisible(): la tabla todavía no se mostró y isVisible() daría false (alto 0 de encabezado)
+    int alto = t->horizontalHeader()->isHidden() ? 0 : t->horizontalHeader()->maximumHeight();
     alto += t->verticalHeader()->defaultSectionSize() * t->rowCount();
-    t->setFixedHeight(alto + 2 * t->frameWidth() + 14); // + lugar para la barra horizontal
+    t->setFixedHeight(alto + 2 * t->frameWidth() + tema::px(20)); // + lugar para la barra horizontal si hiciera falta
 }
 
 QTableWidget* tablaMatriz(const grafos::Grafo& g, const std::vector<std::vector<double>>& m,
@@ -128,8 +131,14 @@ QTableWidget* tablaDetalle(const grafos::Grafo& g, const grafos::Resultado& r) {
     t->setHorizontalHeaderLabels({QStringLiteral("PASO"), QStringLiteral("TRAMO"), QStringLiteral("PESO"),
                                   QStringLiteral("ACUMULADO"), QStringLiteral("NOTA")});
     t->verticalHeader()->hide();
-    t->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    t->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+    // Títulos alineados igual que sus celdas: TRAMO y NOTA a la izquierda, el resto centrado
+    recorrer(0, 5, [&](int c) {
+        const bool izquierda = (c == 1 || c == 4);
+        t->horizontalHeaderItem(c)->setTextAlignment(izquierda ? (Qt::AlignVCenter | Qt::AlignLeft)
+                                                               : Qt::Alignment(Qt::AlignCenter));
+    });
+    // Las cinco columnas miden lo mismo: se reparten el ancho de la tabla por igual
+    recorrer(0, 5, [&](int c) { t->horizontalHeader()->setSectionResizeMode(c, QHeaderView::Stretch); });
 
     int acumulado = 0;
     recorrer(0, pasos, [&](int i) {
@@ -200,9 +209,13 @@ void PanelResultado::mostrar(const grafos::Grafo& g, const grafos::Resultado& r)
     auto* datos = new QVBoxLayout;
     datos->setSpacing(2);
     datos->addStretch(1);
-    datos->addWidget(etiqueta(QStringLiteral("costo total"), "rotulo"));
-    datos->addWidget(etiqueta(algoritmo + QStringLiteral(" · ") + QString::number(pasos) +
-                                  (pasos == 1 ? QStringLiteral(" paso") : QStringLiteral(" pasos")), "pista"));
+    QLabel* rotuloCosto = etiqueta(QStringLiteral("costo total"), "rotulo");
+    QLabel* detalleCosto = etiqueta(algoritmo + QStringLiteral(" · ") + QString::number(pasos) +
+                                        (pasos == 1 ? QStringLiteral(" paso") : QStringLiteral(" pasos")), "pista");
+    rotuloCosto->setWordWrap(false); // en una sola línea: con nombres largos se partía en tres
+    detalleCosto->setWordWrap(false);
+    datos->addWidget(rotuloCosto);
+    datos->addWidget(detalleCosto);
     filaCosto->addLayout(datos);
     filaCosto->addStretch(1);
     resumen->addLayout(filaCosto);
@@ -225,36 +238,18 @@ void PanelResultado::mostrar(const grafos::Grafo& g, const grafos::Resultado& r)
         detalle->addWidget(etiqueta(QStringLiteral("El origen y el destino son el mismo nodo: no hay pasos."), "pista"));
     }
 
-    // ---------- Costo mínimo desde el origen ----------
     const int n = g.cantidadNodos();
-    QVBoxLayout* distancias = agregarTarjeta(capa, QStringLiteral("Costo mínimo desde ") + nombreDe(g, r.origen),
-        QStringLiteral("— = nodo bloqueado o filtrado  ·  ∞ = inalcanzable"));
-    auto* tabla = tablaCompacta(1, n);
-    QStringList encabezados;
-    recorrer(0, n, [&](int i) {
-        encabezados << nombreDe(g, i);
-        const bool fuera = i < static_cast<int>(r.excluido.size()) && r.excluido[i];
-        celda(tabla, 0, i, fuera ? QStringLiteral("—") : formato(r.distDesdeOrigen[i]), i == r.destino, true);
-    });
-    tabla->setHorizontalHeaderLabels(encabezados);
-    tabla->verticalHeader()->hide();
-    ajustarAlto(tabla);
-    distancias->addWidget(tabla);
 
-    // ---------- Matrices (solo Floyd-Warshall) ----------
-    if (r.algoritmo == grafos::Algoritmo::Floyd) {
-        if (n > MAXIMO_NODOS_EN_MATRIZ) {
-            QVBoxLayout* m = agregarTarjeta(capa, QStringLiteral("Matrices"), QString());
-            m->addWidget(etiqueta(QStringLiteral("Las matrices tienen %1 × %1 celdas: son demasiado grandes para "
-                                                 "mostrarlas, pero el cálculo se hizo igual.").arg(n), "pista"));
-        } else {
-            QVBoxLayout* a = agregarTarjeta(capa, QStringLiteral("Matriz de adyacencia"),
-                QStringLiteral("Peso del arco directo fila → columna. "
-                               "En rosa, los arcos que usa el camino."));
-            a->addWidget(tablaMatriz(g, r.matrizAdyacencia, r.camino));
-            QVBoxLayout* d = agregarTarjeta(capa, QStringLiteral("Matriz de distancias mínimas"),
-                QStringLiteral("Resultado de Floyd-Warshall: costo mínimo entre cada par de nodos."));
-            d->addWidget(tablaMatriz(g, r.matrizDistancias, std::vector<int>()));
-        }
+    // ---------- Matrices ----------
+    if (n > MAXIMO_NODOS_EN_MATRIZ) {
+        QVBoxLayout* m = agregarTarjeta(capa, QStringLiteral("Matriz de adyacencia"), QString());
+        m->addWidget(etiqueta(QStringLiteral("La matriz tiene %1 × %1 celdas: es demasiado grande para "
+                                             "mostrarla, pero el cálculo se hizo igual.").arg(n), "pista"));
+        return;
     }
+    // Se muestra con cualquier algoritmo
+    QVBoxLayout* a = agregarTarjeta(capa, QStringLiteral("Matriz de adyacencia"),
+        QStringLiteral("Peso del arco directo fila → columna (0 en la diagonal, INF si no hay arco o está cortado). "
+                       "En rosa, los arcos que usa el camino."));
+    a->addWidget(tablaMatriz(g, r.matrizAdyacencia, r.camino));
 }

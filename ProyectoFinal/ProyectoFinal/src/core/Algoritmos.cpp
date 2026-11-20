@@ -160,7 +160,7 @@ Arbol bellmanFord(const std::vector<ArcoPlano>& arcos, int n, int fuente, bool& 
 }
 
 // ============================================================
-//  FLOYD-WARSHALL sobre la MATRIZ DE ADYACENCIA
+//  MATRIZ DE ADYACENCIA (se itera sobre la propia matriz)
 //  A[i][j] = costo del arco directo i -> j (∞ si no hay)
 //  Para cada k, i, j: si pasar por k mejora i -> j, se actualiza.
 //  P[i][j] = nodo anterior a j en el mejor camino desde i.
@@ -175,25 +175,25 @@ void cargarArcoEnMatriz(const std::vector<ArcoPlano>& arcos, size_t k, Matriz& A
     cargarArcoEnMatriz(arcos, k + 1, A, P);
 }
 
-void floydJ(int k, int i, int j, int n, Matriz& D, MatrizInt& P) {
+void matrizJ(int k, int i, int j, int n, Matriz& D, MatrizInt& P) {
     if (j >= n) return;
     if (D[k][j] < INFINITO && D[i][k] + D[k][j] < D[i][j]) {
         D[i][j] = D[i][k] + D[k][j];
         P[i][j] = P[k][j];
     }
-    floydJ(k, i, j + 1, n, D, P);
+    matrizJ(k, i, j + 1, n, D, P);
 }
 
-void floydI(int k, int i, int n, Matriz& D, MatrizInt& P) {
+void matrizI(int k, int i, int n, Matriz& D, MatrizInt& P) {
     if (i >= n) return;
-    if (D[i][k] < INFINITO) floydJ(k, i, 0, n, D, P);
-    floydI(k, i + 1, n, D, P);
+    if (D[i][k] < INFINITO) matrizJ(k, i, 0, n, D, P);
+    matrizI(k, i + 1, n, D, P);
 }
 
-void floydK(int k, int n, Matriz& D, MatrizInt& P) {
+void matrizK(int k, int n, Matriz& D, MatrizInt& P) {
     if (k >= n) return;
-    floydI(k, 0, n, D, P);
-    floydK(k + 1, n, D, P);
+    matrizI(k, 0, n, D, P);
+    matrizK(k + 1, n, D, P);
 }
 
 bool diagonalNegativa(const Matriz& D, int i) {
@@ -202,7 +202,7 @@ bool diagonalNegativa(const Matriz& D, int i) {
     return diagonalNegativa(D, i + 1);
 }
 
-Arbol arbolDesdeFloyd(const Matriz& D, const MatrizInt& P, int fuente) {
+Arbol arbolDesdeMatriz(const Matriz& D, const MatrizInt& P, int fuente) {
     Arbol t;
     t.dist = D[fuente];
     t.prev = P[fuente];
@@ -296,23 +296,31 @@ Resultado conError(Resultado r, const std::string& mensaje) {
 std::string nombreAlgoritmo(Algoritmo alg) {
     if (alg == Algoritmo::Dijkstra) return "Dijkstra";
     if (alg == Algoritmo::BellmanFord) return "Bellman-Ford";
-    return "Matriz de adyacencia (Floyd-Warshall)";
+    return "Matriz de adyacencia";
 }
 
 bool pesoBloqueado(const Filtros& f, int peso) {
     if (f.evitarAristasPares && peso % 2 == 0) return true;
     if (f.evitarAristasImpares && peso % 2 != 0) return true;
+    if (f.soloPositivos && peso <= 0) return true;
+    if (f.soloNegativos && peso >= 0) return true;
     return pesoEnLista(f.pesosBloqueados, peso, 0);
 }
 
+// Misma regla que motivoExclusion, pero sin armar textos: se llama por cada nodo en cada repintado.
 bool nodoExcluido(const Grafo& g, int indice, const Filtros& f) {
-    return !motivoExclusion(g, indice, f, "").empty();
+    if (g.nodo(indice).bloqueado) return true;
+    const long numero = g.numeroDeNodo(indice);
+    if (f.evitarPares && numero % 2 == 0) return true;
+    if (f.evitarImpares && numero % 2 != 0) return true;
+    return false;
 }
 
 std::string motivoExclusion(const Grafo& g, int indice, const Filtros& f, const std::string& quien) {
     const Nodo& n = g.nodo(indice);
     const long numero = g.numeroDeNodo(indice);
-    const std::string nombre = quien + (quien.empty() ? "" : " ") + comillas(n.nombre);
+    const std::string nombre = quien + (quien.empty() ? "" : " ") + comillas(n.nombre) +
+                               " (nodo n.º " + std::to_string(numero) + ")";
     if (n.bloqueado) return nombre + " está bloqueado.";
     if (f.evitarPares && numero % 2 == 0)
         return nombre + " es par y está activo el filtro \"Evitar nodos pares\".";
@@ -332,6 +340,8 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
     if (n == 0) return conError(r, "El grafo está vacío. Agregá nodos o cargá el ejemplo.");
     if (f.evitarAristasPares && f.evitarAristasImpares)
         return conError(r, "Evitar aristas pares e impares a la vez corta todas las aristas. Dejá tildada solo una.");
+    if (f.soloPositivos && f.soloNegativos)
+        return conError(r, "Solo positivos y solo negativos a la vez corta todas las aristas. Dejá tildada solo una.");
     if (origen < 0 || destino < 0 || origen >= n || destino >= n)
         return conError(r, "Elegí un origen y un destino.");
 
@@ -366,19 +376,18 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
         return conError(r, "Dijkstra no admite pesos negativos (hay una arista con peso negativo). "
                            "Probá con Bellman-Ford o con la matriz de adyacencia.");
 
-    // ---------- Floyd: matriz completa una sola vez ----------
-    Matriz D;
-    MatrizInt P;
-    if (alg == Algoritmo::Floyd) {
-        D = Matriz(n, std::vector<double>(n, INFINITO));
-        P = MatrizInt(n, std::vector<int>(n, -1));
-        recorrer(0, n, [&](int i) { D[i][i] = 0.0; });
-        cargarArcoEnMatriz(plano, 0, D, P);
-        r.matrizAdyacencia = D; // la matriz de adyacencia antes de iterar
-        floydK(0, n, D, P);
+    // ---------- matriz de adyacencia: se arma siempre, con cualquier algoritmo ----------
+    Matriz D(n, std::vector<double>(n, INFINITO));
+    MatrizInt P(n, std::vector<int>(n, -1));
+    recorrer(0, n, [&](int i) { D[i][i] = 0.0; });
+    cargarArcoEnMatriz(plano, 0, D, P);
+    r.matrizAdyacencia = D;
+
+    // ---------- matriz de adyacencia: se itera la misma matriz una sola vez ----------
+    if (alg == Algoritmo::MatrizAdyacencia) {
+        matrizK(0, n, D, P);
         if (diagonalNegativa(D, 0))
             return conError(r, "Hay un ciclo de peso negativo: no existe camino mínimo.");
-        r.matrizDistancias = D;
     }
 
     // ---------- un árbol por cada fuente (origen y obligatorios) ----------
@@ -402,7 +411,7 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
                 errorCiclo = "Hay un ciclo de peso negativo alcanzable desde " + comillas(g.nodo(s).nombre) +
                              ": no existe camino mínimo.";
         } else {
-            arboles.push_back(arbolDesdeFloyd(D, P, s));
+            arboles.push_back(arbolDesdeMatriz(D, P, s));
         }
     });
     if (!errorCiclo.empty()) return conError(r, errorCiclo);

@@ -45,6 +45,8 @@ public:
     // Vuelve a crear todos los elementos a partir del grafo.
     void reconstruir();
     void ajustarVista();
+    // Agranda o achica todo el dibujo (nodos, aristas y números) multiplicando el zoom actual.
+    void escalarVista(double factor);
 
     // Posición sin superposición más cercana a "deseada".
     QPointF posicionLibre(QPointF deseada, double radio, int ignorar) const;
@@ -79,6 +81,7 @@ private:
     void nodoSoltado(int indice);
     void rutearAristas();
     void rutearArista(int k);
+    void rutearAristasDe(int nodo);
     void aplicarEstados();
     void actualizarRectEscena();
     void avanzarAnimacion();
