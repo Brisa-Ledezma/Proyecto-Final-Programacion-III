@@ -121,16 +121,15 @@ QWidget* chipsDelCamino(const grafos::Grafo& g, const std::vector<int>& camino) 
     return contenedor;
 }
 
-// Una fila por paso: tramo, peso de la arista, peso del nodo, costo y acumulado.
+// Una fila por paso: tramo, peso de la arista y acumulado.
 QTableWidget* tablaDetalle(const grafos::Grafo& g, const grafos::Resultado& r) {
     const int pasos = static_cast<int>(r.camino.size()) - 1;
-    auto* t = tablaCompacta(pasos, 7);
-    t->setHorizontalHeaderLabels({QStringLiteral("PASO"), QStringLiteral("TRAMO"), QStringLiteral("PESO ARISTA"),
-                                  QStringLiteral("PESO NODO"), QStringLiteral("COSTO DEL PASO"),
+    auto* t = tablaCompacta(pasos, 5);
+    t->setHorizontalHeaderLabels({QStringLiteral("PASO"), QStringLiteral("TRAMO"), QStringLiteral("PESO"),
                                   QStringLiteral("ACUMULADO"), QStringLiteral("NOTA")});
     t->verticalHeader()->hide();
     t->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    t->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
+    t->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
 
     int acumulado = 0;
     recorrer(0, pasos, [&](int i) {
@@ -139,9 +138,7 @@ QTableWidget* tablaDetalle(const grafos::Grafo& g, const grafos::Resultado& r) {
         const int k = r.aristasCamino[i];
         const grafos::Arista& e = g.arista(k);
         const int pesoArista = (e.desde == u) ? e.pesoIda : e.pesoVuelta;
-        const int pesoNodo = g.nodo(v).peso;
-        const int costoPaso = pesoArista + pesoNodo;
-        acumulado += costoPaso;
+        acumulado += pesoArista;
 
         QString nota;
         if (v == r.destino && i == pasos - 1) nota = QStringLiteral("llegada al destino");
@@ -150,10 +147,8 @@ QTableWidget* tablaDetalle(const grafos::Grafo& g, const grafos::Resultado& r) {
         celda(t, i, 0, QString::number(i + 1), false, true);
         celda(t, i, 1, nombreDe(g, u) + QStringLiteral("  →  ") + nombreDe(g, v), false, false);
         celda(t, i, 2, QString::number(pesoArista), false, true);
-        celda(t, i, 3, QString::number(pesoNodo), false, true);
-        celda(t, i, 4, QString::number(costoPaso), false, true);
-        celda(t, i, 5, QString::number(acumulado), true, true);
-        celda(t, i, 6, nota, false, false);
+        celda(t, i, 3, QString::number(acumulado), true, true);
+        celda(t, i, 4, nota, false, false);
     });
     ajustarAlto(t);
     return t;
@@ -223,7 +218,7 @@ void PanelResultado::mostrar(const grafos::Grafo& g, const grafos::Resultado& r)
     // ---------- Detalle del recorrido ----------
     if (pasos > 0) {
         QVBoxLayout* detalle = agregarTarjeta(capa, QStringLiteral("Detalle del recorrido"),
-            QStringLiteral("Costo de cada paso = peso de la arista en ese sentido + peso del nodo al que se entra."));
+            QStringLiteral("Costo de cada paso = peso de la arista en el sentido en que se recorre."));
         detalle->addWidget(tablaDetalle(g, r));
     } else {
         QVBoxLayout* detalle = agregarTarjeta(capa, QStringLiteral("Detalle del recorrido"), QString());
@@ -254,7 +249,7 @@ void PanelResultado::mostrar(const grafos::Grafo& g, const grafos::Resultado& r)
                                                  "mostrarlas, pero el cálculo se hizo igual.").arg(n), "pista"));
         } else {
             QVBoxLayout* a = agregarTarjeta(capa, QStringLiteral("Matriz de adyacencia"),
-                QStringLiteral("Costo del arco directo fila → columna (incluye el peso del nodo al que se entra). "
+                QStringLiteral("Peso del arco directo fila → columna. "
                                "En rosa, los arcos que usa el camino."));
             a->addWidget(tablaMatriz(g, r.matrizAdyacencia, r.camino));
             QVBoxLayout* d = agregarTarjeta(capa, QStringLiteral("Matriz de distancias mínimas"),

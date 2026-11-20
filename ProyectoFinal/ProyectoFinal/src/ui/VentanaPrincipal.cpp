@@ -251,26 +251,21 @@ QFrame* VentanaPrincipal::tarjetaNodos() {
     formulario->setHorizontalSpacing(10);
     formulario->setVerticalSpacing(6);
     nombreNodo_ = new QLineEdit;
-    nombreNodo_->setPlaceholderText(QStringLiteral("Vacío = automático"));
-    // Solo letras: los números se confundirían con el peso o el número del nodo
+    nombreNodo_->setPlaceholderText(QStringLiteral("Vacío = siguiente número libre"));
+    // Solo un número desde 1: el primer dígito no puede ser 0
     nombreNodo_->setValidator(new QRegularExpressionValidator(
-        QRegularExpression(QStringLiteral("\\p{L}{0,%1}").arg(grafos::Grafo::LARGO_MAXIMO_NOMBRE)), nombreNodo_));
-    pesoNodo_ = crearSpin(0);
+        QRegularExpression(QStringLiteral("([1-9][0-9]{0,%1})?").arg(grafos::Grafo::LARGO_MAXIMO_NOMBRE - 1)), nombreNodo_));
     auto* agregar = new QPushButton(QStringLiteral("Agregar"));
     agregar->setObjectName(QStringLiteral("principal"));
-    formulario->addWidget(rotulo(QStringLiteral("NOMBRE")), 0, 0);
-    formulario->addWidget(rotulo(QStringLiteral("PESO")), 0, 1);
+    formulario->addWidget(rotulo(QStringLiteral("NÚMERO DEL NODO")), 0, 0);
     formulario->addWidget(nombreNodo_, 1, 0);
-    formulario->addWidget(pesoNodo_, 1, 1);
-    formulario->addWidget(agregar, 1, 2);
+    formulario->addWidget(agregar, 1, 1);
     formulario->setColumnStretch(0, 1);
     c->addLayout(formulario);
 
-    tablaNodos_ = crearTabla({QStringLiteral("#"), QStringLiteral("NODO"), QStringLiteral("PESO"),
-                              QStringLiteral("BLOQ."), QStringLiteral("OBLIG."), QString()}, 1);
+    tablaNodos_ = crearTabla({QStringLiteral("NODO"), QStringLiteral("BLOQ."), QStringLiteral("OBLIG."), QString()}, 0);
     c->addWidget(tablaNodos_);
-    c->addWidget(pista(QStringLiteral("El peso (entero) se suma cada vez que el camino entra al nodo; el origen no cuenta. "
-                                      "El nombre solo admite letras. El # es el número que usan los filtros par/impar.")));
+    c->addWidget(pista(QStringLiteral("Cada nodo es un número desde 1 (hasta %1 cifras).").arg(grafos::Grafo::LARGO_MAXIMO_NOMBRE)));
 
     connect(agregar, &QPushButton::clicked, this, [this]() { agregarNodo(QPointF(), false); });
     connect(nombreNodo_, &QLineEdit::returnPressed, this, [this]() { agregarNodo(QPointF(), false); });
@@ -333,8 +328,8 @@ QFrame* VentanaPrincipal::tarjetaAristas() {
 QFrame* VentanaPrincipal::tarjetaFiltros() {
     QVBoxLayout* c = nullptr;
     QFrame* marco = tarjeta(QStringLiteral("Filtros"), c);
-    evitarPares_ = new QCheckBox(QStringLiteral("Evitar nodos pares  (#2, #4, #6…)"));
-    evitarImpares_ = new QCheckBox(QStringLiteral("Evitar nodos impares  (#1, #3, #5…)"));
+    evitarPares_ = new QCheckBox(QStringLiteral("Evitar nodos pares  (2, 4, 6…)"));
+    evitarImpares_ = new QCheckBox(QStringLiteral("Evitar nodos impares  (1, 3, 5…)"));
     c->addWidget(evitarPares_);
     c->addWidget(evitarImpares_);
     c->addWidget(pista(QStringLiteral("Para evitar un nodo o una arista puntual, tildá «Bloq.» en su tabla "
@@ -433,16 +428,7 @@ void VentanaPrincipal::refrescarTablaNodos() {
     tablaNodos_->setRowCount(n);
     recorrer(0, n, [&](int i) {
         const grafos::Nodo& nodo = grafo_.nodo(i);
-        tablaNodos_->setItem(i, 0, itemTexto(QStringLiteral("#%1").arg(grafos::Grafo::numeroDeNodo(i))));
-        tablaNodos_->setItem(i, 1, itemTexto(aQString(nodo.nombre)));
-
-        auto* peso = spinDeTabla(nodo.peso);
-        connect(peso, &QSpinBox::valueChanged, this, [this, i](int v) {
-            grafo_.nodo(i).peso = v;
-            lienzo_->reconstruir();
-            cambio();
-        });
-        tablaNodos_->setCellWidget(i, 2, centrado(peso));
+        tablaNodos_->setItem(i, 0, itemTexto(aQString(nodo.nombre)));
 
         auto* bloqueado = new QCheckBox;
         bloqueado->setChecked(nodo.bloqueado);
@@ -451,7 +437,7 @@ void VentanaPrincipal::refrescarTablaNodos() {
             lienzo_->setFiltros(filtros());
             cambio();
         });
-        tablaNodos_->setCellWidget(i, 3, centrado(bloqueado));
+        tablaNodos_->setCellWidget(i, 1, centrado(bloqueado));
 
         auto* obligatorio = new QCheckBox;
         obligatorio->setChecked(nodo.obligatorio);
@@ -460,14 +446,14 @@ void VentanaPrincipal::refrescarTablaNodos() {
             lienzo_->setFiltros(filtros());
             cambio();
         });
-        tablaNodos_->setCellWidget(i, 4, centrado(obligatorio));
+        tablaNodos_->setCellWidget(i, 2, centrado(obligatorio));
 
         auto* quitar = botonQuitar(QStringLiteral("Quitar nodo"));
         // Diferido: no se puede borrar la tabla mientras se procesa el clic de su botón
         connect(quitar, &QToolButton::clicked, this, [this, i]() {
             QTimer::singleShot(0, this, [this, i]() { eliminarNodo(i); });
         });
-        tablaNodos_->setCellWidget(i, 5, centrado(quitar));
+        tablaNodos_->setCellWidget(i, 3, centrado(quitar));
     });
     ajustarAltoTabla(tablaNodos_);
 }
@@ -548,7 +534,7 @@ void VentanaPrincipal::agregarNodo(QPointF posicion, bool posicionElegida) {
     const double radio = radioParaNombre(aQString(nombre));
     const QPointF deseada = posicionElegida ? posicion : lienzo_->centroVisible();
     const QPointF libre = lienzo_->posicionLibre(deseada, radio, -1); // nunca encima de otro nodo
-    grafo_.agregarNodo(nombre, pesoNodo_->value(), libre.x(), libre.y());
+    grafo_.agregarNodo(nombre, libre.x(), libre.y());
     nombreNodo_->clear();
     refrescarTodo();
 }

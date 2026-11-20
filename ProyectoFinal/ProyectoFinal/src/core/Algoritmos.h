@@ -21,8 +21,8 @@ const double INFINITO = std::numeric_limits<double>::infinity();
 enum class Algoritmo { Dijkstra, BellmanFord, Floyd };
 
 struct Filtros {
-    bool evitarPares = false;   // excluye los nodos #2, #4, #6 ...
-    bool evitarImpares = false; // excluye los nodos #1, #3, #5 ...
+    bool evitarPares = false;   // excluye los nodos 2, 4, 6 ... (según su número)
+    bool evitarImpares = false; // excluye los nodos 1, 3, 5 ...
 };
 
 // Arco = una dirección concreta de una arista (u -> v) ya con su costo.

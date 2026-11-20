@@ -35,7 +35,6 @@ private:
 
     // Nodos
     QLineEdit* nombreNodo_ = nullptr;
-    QSpinBox* pesoNodo_ = nullptr;
     QTableWidget* tablaNodos_ = nullptr;
     // Aristas
     QComboBox* desde_ = nullptr;

@@ -19,7 +19,6 @@ QFont fuente(int pixeles, bool negrita) {
     return f;
 }
 
-QString formatoNumero(double v) { return QString::number(v, 'g', 6); }
 
 } // namespace
 
@@ -31,14 +30,13 @@ double radioParaNombre(const QString& nombre) {
 // ============================================================
 //  NodoItem
 // ============================================================
-NodoItem::NodoItem(int indice, const QString& nombre, int numero, double peso, double radio)
-    : indice_(indice), nombre_(nombre), numero_(numero), peso_(peso), radio_(radio) {
+NodoItem::NodoItem(int indice, const QString& nombre, double radio)
+    : indice_(indice), nombre_(nombre), radio_(radio) {
     setZValue(capas::NODO);
     setFlag(QGraphicsItem::ItemIsMovable, true);
     setCursor(Qt::OpenHandCursor);
     setAcceptHoverEvents(true);
-    setToolTip(QStringLiteral("Nodo #%1 · %2\nArrastralo para moverlo · clic derecho para opciones")
-                   .arg(numero).arg(nombre));
+    setToolTip(QStringLiteral("Nodo %1\nArrastralo para moverlo · clic derecho para opciones").arg(nombre));
 }
 
 void NodoItem::habilitarArrastre() {
@@ -87,19 +85,6 @@ void NodoItem::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) {
     p->setFont(fuente(15, true));
     p->setPen(tema::tinta());
     p->drawText(QRectF(-r, -r, 2 * r, 2 * r), Qt::AlignCenter, nombre_);
-
-    // Número del nodo (para los filtros par/impar)
-    p->setFont(fuente(10, false));
-    p->setPen(tema::apagado());
-    p->drawText(QRectF(r * 0.55, -r - 6, 40, 14), Qt::AlignLeft | Qt::AlignVCenter,
-                QStringLiteral("#%1").arg(numero_));
-
-    // Peso del nodo
-    if (peso_ != 0.0) {
-        p->setFont(fuente(11, false));
-        const QString texto = (peso_ > 0 ? QStringLiteral("+") : QString()) + formatoNumero(peso_);
-        p->drawText(QRectF(-r - 30, r + 2, 2 * r + 60, 16), Qt::AlignCenter, texto);
-    }
 
     // Origen / destino
     if (!rol_.isEmpty()) {
