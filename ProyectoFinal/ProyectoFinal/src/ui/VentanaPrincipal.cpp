@@ -26,6 +26,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <functional>
 
 using grafos::recorrer;
 
@@ -333,8 +334,24 @@ QFrame* VentanaPrincipal::tarjetaFiltros() {
     evitarImpares_ = new QCheckBox(QStringLiteral("Evitar nodos impares  (1, 3, 5…)"));
     c->addWidget(evitarPares_);
     c->addWidget(evitarImpares_);
-    c->addWidget(pista(QStringLiteral("Para evitar un nodo o una arista puntual, tildá «Bloq.» en su tabla "
-                                      "o hacé clic derecho sobre él en el dibujo.")));
+
+    auto* fila = new QGridLayout;
+    fila->setHorizontalSpacing(10);
+    fila->setVerticalSpacing(6);
+    pesoABloquear_ = crearSpin(1);
+    auto* bloquearPeso = new QPushButton(QStringLiteral("Bloquear peso"));
+    fila->addWidget(rotulo(QStringLiteral("BLOQUEAR ARISTAS DE PESO")), 0, 0, 1, 2);
+    fila->addWidget(pesoABloquear_, 1, 0);
+    fila->addWidget(bloquearPeso, 1, 1);
+    fila->setColumnStretch(0, 1);
+    c->addLayout(fila);
+    listaPesos_ = new QWidget;
+    listaPesos_->setLayout(new QGridLayout);
+    listaPesos_->layout()->setContentsMargins(0, 0, 0, 0);
+    c->addWidget(listaPesos_);
+    c->addWidget(pista(QStringLiteral("Un peso bloqueado corta cada sentido de arista que pesa eso (en una no dirigida "
+                                      "con ida 4 y vuelta 2, bloquear el 4 corta solo la ida). Para evitar un nodo o una "
+                                      "arista puntual, tildá «Bloq.» en su tabla o hacé clic derecho en el dibujo.")));
 
     const auto alCambiar = [this](bool) {
         lienzo_->setFiltros(filtros());
@@ -342,6 +359,8 @@ QFrame* VentanaPrincipal::tarjetaFiltros() {
     };
     connect(evitarPares_, &QCheckBox::toggled, this, alCambiar);
     connect(evitarImpares_, &QCheckBox::toggled, this, alCambiar);
+    connect(bloquearPeso, &QPushButton::clicked, this, [this]() { agregarPesoBloqueado(); });
+    refrescarPesosBloqueados();
     return marco;
 }
 
@@ -575,7 +594,70 @@ grafos::Filtros VentanaPrincipal::filtros() const {
     grafos::Filtros f;
     f.evitarPares = evitarPares_->isChecked();
     f.evitarImpares = evitarImpares_->isChecked();
+    f.pesosBloqueados = pesosBloqueados_;
     return f;
+}
+
+// ---- pesos bloqueados: una lista de botones "peso 4 ✕" ----
+void VentanaPrincipal::refrescarPesosBloqueados() {
+    auto* grilla = static_cast<QGridLayout*>(listaPesos_->layout());
+    // Borra los botones anteriores (recursivo, sin while)
+    std::function<void()> vaciar = [&]() {
+        QLayoutItem* item = grilla->takeAt(0);
+        if (item == nullptr) return;
+        if (item->widget() != nullptr) item->widget()->deleteLater();
+        delete item;
+        vaciar();
+    };
+    vaciar();
+    const int POR_FILA = 4;
+    recorrer(0, static_cast<int>(pesosBloqueados_.size()), [&](int i) {
+        const int peso = pesosBloqueados_[i];
+        auto* chip = new QToolButton;
+        chip->setObjectName(QStringLiteral("chipPeso"));
+        chip->setText(QStringLiteral("peso %1  ✕").arg(peso));
+        chip->setToolTip(QStringLiteral("Quitar el bloqueo del peso %1").arg(peso));
+        connect(chip, &QToolButton::clicked, this, [this, peso]() {
+            QTimer::singleShot(0, this, [this, peso]() { quitarPesoBloqueado(peso); });
+        });
+        grilla->addWidget(chip, i / POR_FILA, i % POR_FILA);
+    });
+    grilla->setColumnStretch(POR_FILA, 1);
+    listaPesos_->setVisible(!pesosBloqueados_.empty());
+}
+
+void VentanaPrincipal::agregarPesoBloqueado() {
+    pesoABloquear_->interpretText(); // toma lo tipeado aunque no se haya salido del campo
+    const int peso = pesoABloquear_->value();
+    if (grafos::pesoBloqueado(filtros(), peso)) {
+        QMessageBox::information(this, QStringLiteral("Peso ya bloqueado"),
+                                 QStringLiteral("El peso %1 ya está bloqueado.").arg(peso));
+        return;
+    }
+    pesosBloqueados_.push_back(peso);
+    refrescarPesosBloqueados();
+    lienzo_->setFiltros(filtros());
+    cambio();
+}
+
+void VentanaPrincipal::quitarPesoBloqueado(int peso) {
+    std::vector<int> quedan;
+    recorrer(0, static_cast<int>(pesosBloqueados_.size()), [&](int i) {
+        if (pesosBloqueados_[i] != peso) quedan.push_back(pesosBloqueados_[i]);
+    });
+    pesosBloqueados_ = quedan;
+    refrescarPesosBloqueados();
+    lienzo_->setFiltros(filtros());
+    cambio();
+}
+
+void VentanaPrincipal::limpiarFiltros() {
+    const QSignalBlocker b1(evitarPares_);
+    const QSignalBlocker b2(evitarImpares_);
+    evitarPares_->setChecked(false);
+    evitarImpares_->setChecked(false);
+    pesosBloqueados_.clear();
+    refrescarPesosBloqueados();
 }
 
 grafos::Algoritmo VentanaPrincipal::algoritmoElegido() const {
@@ -596,12 +678,7 @@ void VentanaPrincipal::cargarEjemplo() {
     int origen = 0;
     int destino = 0;
     grafo_.cargarEjemplo(origen, destino);
-    {
-        const QSignalBlocker b1(evitarPares_);
-        const QSignalBlocker b2(evitarImpares_);
-        evitarPares_->setChecked(false);
-        evitarImpares_->setChecked(false);
-    }
+    limpiarFiltros();
     refrescarCombos();
     {
         const QSignalBlocker b1(origen_);
@@ -626,12 +703,7 @@ void VentanaPrincipal::limpiarTodo() {
     }
     grafo_.limpiar();
     calculado_ = false;
-    {
-        const QSignalBlocker b1(evitarPares_);
-        const QSignalBlocker b2(evitarImpares_);
-        evitarPares_->setChecked(false);
-        evitarImpares_->setChecked(false);
-    }
+    limpiarFiltros();
     resultado_->mostrarVacio();
     refrescarTodo();
     lienzo_->ajustarVista();
