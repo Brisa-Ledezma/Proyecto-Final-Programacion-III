@@ -174,14 +174,10 @@ int Grafo::agregarArista(int desde, int hasta, int pesoIda, int pesoVuelta, bool
 // ---- cambio de tipo del grafo ----
 void Grafo::separarEnDirigidas(int k, int total) {
     if (k >= total) return;
+    // Cada arista queda con un solo sentido (desde -> hasta): se descarta el peso de vuelta.
+    // Para recuperarlo, "Deshacer" vuelve al grafo no dirigido anterior.
     aristas_[k].dirigida = true;
-    Arista vuelta = aristas_[k];
-    vuelta.desde = aristas_[k].hasta;
-    vuelta.hasta = aristas_[k].desde;
-    vuelta.pesoIda = aristas_[k].pesoVuelta;
-    vuelta.pesoVuelta = vuelta.pesoIda;
     aristas_[k].pesoVuelta = aristas_[k].pesoIda;
-    aristas_.push_back(vuelta);
     separarEnDirigidas(k + 1, total);
 }
 

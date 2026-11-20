@@ -364,8 +364,8 @@ QFrame* VentanaPrincipal::tarjetaAristas() {
                                 QStringLiteral("BLOQ."), QString()}, 0);
     c->addWidget(tablaAristas_);
     c->addWidget(pista(QStringLiteral("No dirigido: cada arista tiene peso de ida (desde → hasta) y de vuelta "
-                                      "(hasta → desde). Dirigido: un solo peso por arista. Al cambiar el tipo, "
-                                      "A — B pasa a A → B y B → A, y al volver se juntan de nuevo.")));
+                                      "(hasta → desde). Dirigido: un solo peso por arista. Al pasar a dirigido, "
+                                      "A — B queda solo como A → B y se pierde el peso de vuelta; «Deshacer» lo recupera.")));
 
     // El tipo es del grafo entero: convierte todas las aristas
     connect(tipoArista_, &QComboBox::currentIndexChanged, this, [this](int indice) {

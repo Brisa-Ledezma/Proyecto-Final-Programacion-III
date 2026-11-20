@@ -6,7 +6,7 @@ Aplicación de escritorio en **C++17 + Qt 6** (Visual Studio 2022) que calcula e
 
 - **Tres algoritmos:** Dijkstra, Bellman-Ford y matriz de adyacencia. La matriz de adyacencia se muestra siempre, con cualquier algoritmo.
 - **Nodos numerados.** Cada nodo es un número desde 1 (1, 7, 23443 …, hasta 6 cifras). El campo solo deja tipear dígitos y no acepta el 0 ni números repetidos. Los nodos no tienen peso.
-- **Grafo dirigido o no dirigido**, elegido para el grafo entero. No dirigido: cada arista tiene peso de ida y peso de vuelta. Dirigido: un peso por arista. Al cambiar el tipo, `A — B` pasa a `A → B` y `B → A`, y al volver se juntan de nuevo, sin perder pesos.
+- **Grafo dirigido o no dirigido**, elegido para el grafo entero. No dirigido: cada arista tiene peso de ida y peso de vuelta. Dirigido: un peso por arista. Al pasar a dirigido, `A — B` queda solo como `A → B` con el peso de ida y se descarta el de vuelta; **Deshacer** vuelve al grafo no dirigido con sus pesos.
 - **Pesos enteros.** Los campos de peso solo dejan tipear dígitos y un `-` al principio (ni punto, ni coma, ni `+`).
 - **Sin límite de nodos.** Si no se escribe un número, se usa el menor libre.
 - **Los nodos nunca se superponen.** Al crearlos o al soltarlos después de arrastrarlos se corren al lugar libre más cercano.

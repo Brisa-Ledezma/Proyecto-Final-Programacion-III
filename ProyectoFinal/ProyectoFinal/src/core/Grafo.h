@@ -63,9 +63,10 @@ public:
 
     // ---- tipo del grafo (vale para TODAS las aristas) ----
     bool dirigido() const { return dirigido_; }
-    // Pasar a dirigido: cada arista A — B se convierte en A → B (peso ida) y B → A (peso vuelta).
-    // Pasar a no dirigido: A → B y B → A se juntan en A — B (ida y vuelta); una sola queda con
-    // el mismo peso en los dos sentidos. Así ir y volver de modo no cambia nada.
+    // Pasar a dirigido: cada arista A — B queda como A → B con el peso de ida; el peso de vuelta se
+    // descarta (la interfaz guarda el estado anterior para "Deshacer").
+    // Pasar a no dirigido: A → B y B → A cargadas a mano se juntan en A — B (ida y vuelta); una sola
+    // queda con el mismo peso en los dos sentidos.
     void setDirigido(bool valor);
 
     // ---- aristas ----
