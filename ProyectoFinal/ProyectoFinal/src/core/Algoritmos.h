@@ -26,9 +26,11 @@ struct Filtros {
     // Pesos bloqueados: no se usa ningún sentido de arista que pese esto.
     // En una no dirigida con ida 4 y vuelta 2, bloquear el 4 corta solo la ida.
     std::vector<int> pesosBloqueados;
+    bool evitarAristasPares = false;   // corta los sentidos de arista con peso par (0, 2, -4 ...)
+    bool evitarAristasImpares = false; // corta los sentidos de arista con peso impar (1, 3, -5 ...)
 };
 
-// ¿Ese peso está en la lista de bloqueados?
+// ¿Un sentido de arista con ese peso queda cortado (lista de pesos o paridad)?
 bool pesoBloqueado(const Filtros& f, int peso);
 
 // Arco = una dirección concreta de una arista (u -> v) ya con su costo.

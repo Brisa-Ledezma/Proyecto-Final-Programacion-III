@@ -299,7 +299,11 @@ std::string nombreAlgoritmo(Algoritmo alg) {
     return "Matriz de adyacencia (Floyd-Warshall)";
 }
 
-bool pesoBloqueado(const Filtros& f, int peso) { return pesoEnLista(f.pesosBloqueados, peso, 0); }
+bool pesoBloqueado(const Filtros& f, int peso) {
+    if (f.evitarAristasPares && peso % 2 == 0) return true;
+    if (f.evitarAristasImpares && peso % 2 != 0) return true;
+    return pesoEnLista(f.pesosBloqueados, peso, 0);
+}
 
 bool nodoExcluido(const Grafo& g, int indice, const Filtros& f) {
     return !motivoExclusion(g, indice, f, "").empty();
@@ -326,6 +330,8 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
 
     // ---------- validaciones ----------
     if (n == 0) return conError(r, "El grafo está vacío. Agregá nodos o cargá el ejemplo.");
+    if (f.evitarAristasPares && f.evitarAristasImpares)
+        return conError(r, "Evitar aristas pares e impares a la vez corta todas las aristas. Dejá tildada solo una.");
     if (origen < 0 || destino < 0 || origen >= n || destino >= n)
         return conError(r, "Elegí un origen y un destino.");
 
