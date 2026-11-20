@@ -1,7 +1,7 @@
 // ============================================================
 //  Proyecto Final - Programación III
 //  Caminos en grafos: Dijkstra, Bellman-Ford y matriz de
-//  adyacencia (Floyd-Warshall) con filtros y vista gráfica.
+//  adyacencia con filtros y vista gráfica.
 // ============================================================
 
 #include "ui/Tema.h"
@@ -17,8 +17,7 @@
 
 namespace {
 
-// Dibuja los íconos del tema (tilde de las casillas y flecha de los
-// combos) y los guarda en una carpeta temporal para la hoja de estilo.
+// Dibuja los íconos del tema y los guarda en una carpeta temporal para la hoja de estilo.
 QString prepararIconos() {
     const QString carpeta = QDir::tempPath() + QStringLiteral("/caminos-en-grafos-iconos");
     QDir().mkpath(carpeta);
@@ -72,7 +71,7 @@ QPalette paletaOscura() {
 int main(int argc, char* argv[]) {
     QApplication aplicacion(argc, argv);
 
-    // Tema oscuro fijo, independiente de la configuración de Windows
+    // Tema oscuro
     aplicacion.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
     aplicacion.setPalette(paletaOscura());
     aplicacion.setStyleSheet(tema::hojaDeEstilo(prepararIconos()));
