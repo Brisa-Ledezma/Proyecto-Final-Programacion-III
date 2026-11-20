@@ -8,10 +8,12 @@
 // ============================================================
 
 #include <QComboBox>
+#include <QRegularExpression>
 #include <QSpinBox>
 #include <QWheelEvent>
 
-// Solo enteros: los pesos no admiten decimales.
+// Solo enteros: los pesos no admiten decimales. Solo se puede
+// tipear un "-" al principio y dígitos (ni punto, ni coma, ni "+").
 class SpinSinRueda : public QSpinBox {
 public:
     explicit SpinSinRueda(QWidget* parent = nullptr) : QSpinBox(parent) {
@@ -21,6 +23,14 @@ public:
     }
 
 protected:
+    QValidator::State validate(QString& texto, int& posicion) const override {
+        static const QRegularExpression permitido(QStringLiteral("^-?[0-9]*$"));
+        if (!permitido.match(texto).hasMatch()) return QValidator::Invalid;
+        return QSpinBox::validate(texto, posicion);
+    }
+    int valueFromText(const QString& texto) const override { return texto.toInt(); }
+    QString textFromValue(int valor) const override { return QString::number(valor); } // sin separador de miles
+
     void wheelEvent(QWheelEvent* evento) override {
         if (!hasFocus()) {
             evento->ignore(); // la rueda pasa a la página
