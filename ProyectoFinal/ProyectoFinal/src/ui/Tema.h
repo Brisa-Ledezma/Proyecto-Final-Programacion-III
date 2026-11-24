@@ -111,6 +111,9 @@ QCheckBox::indicator:checked { background: #ff5fa2; border-color: #ff5fa2; image
 /* ---------- tablas ---------- */
 QTableWidget { background: transparent; border: none; gridline-color: transparent; color: #ede7f2; }
 QTableWidget::item { padding: 6px 8px; border-bottom: 1px solid #2a2532; }
+QTableWidget::indicator { width: 18px; height: 18px; border-radius: 5px; border: 1px solid #4a4155; background: #25212c; }
+QTableWidget::indicator:hover { border-color: #ff5fa2; }
+QTableWidget::indicator:checked { background: #ff5fa2; border-color: #ff5fa2; image: url("@ICONOS@/check.png"); }
 QHeaderView { background: transparent; }
 QHeaderView::section {
     background: transparent; color: #9b90a8; border: none; border-bottom: 1px solid #332d3c;

@@ -7,6 +7,7 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QFontMetrics>
 #include <QLabel>
 #include <QTableWidget>
 #include <QVBoxLayout>
@@ -15,7 +16,7 @@ using grafos::recorrer;
 
 namespace {
 
-const int MAXIMO_NODOS_EN_MATRIZ = 60; // solo limita lo que se MUESTRA, no el grafo
+using grafos::MAXIMO_NODOS_EN_MATRIZ; // solo limita lo que se MUESTRA, no el grafo
 const int CHIPS_POR_FILA = 7;
 const int ALTO_ENCABEZADO = 40; // px base de la fila de títulos de las tablas de resultado
 
@@ -85,6 +86,21 @@ QTableWidget* tablaMatriz(const grafos::Grafo& g, const std::vector<std::vector<
                           const std::vector<int>& camino) {
     const int n = static_cast<int>(m.size());
     auto* t = tablaCompacta(n, n);
+
+    // Ancho fijo para todas las columnas, calculado una sola vez con el texto más largo, y ANTES de
+    // cargar encabezados y celdas. "Ajustar al contenido" mide todas las filas de cada columna
+    // (n² mediciones con estilo) cada vez que cambia algo: con 40-60 nodos la ventana quedaba trabada.
+    const QFontMetrics medida(t->font());
+    int ancho = tema::px(54);
+    recorrer(0, n, [&](int i) {
+        recorrer(0, n, [&](int j) {
+            const int w = medida.horizontalAdvance(formato(m[i][j])) + tema::px(30);
+            if (w > ancho) ancho = w;
+        });
+    });
+    t->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    t->horizontalHeader()->setDefaultSectionSize(ancho);
+
     QStringList encabezados;
     recorrer(0, n, [&](int i) { encabezados << nombreDe(g, i); });
     t->setHorizontalHeaderLabels(encabezados);
@@ -227,6 +243,8 @@ void PanelResultado::mostrar(const grafos::Grafo& g, const grafos::Resultado& r)
                  [&](int i) { orden << nombreDe(g, r.ordenObligatorios[i]); });
         resumen->addWidget(etiqueta(QStringLiteral("Orden de paso por los obligatorios: ") + orden.join(QStringLiteral(", ")), "pista"));
     }
+
+    if (!r.aviso.empty()) resumen->addWidget(etiqueta(QString::fromStdString(r.aviso), "pista"));
 
     // ---------- Detalle del recorrido ----------
     if (pasos > 0) {

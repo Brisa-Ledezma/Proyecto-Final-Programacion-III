@@ -177,8 +177,8 @@ void AristaItem::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) {
     // cuando están en el camino, para mostrar hacia dónde se recorre.
     p->setPen(QPen(color, 1));
     p->setBrush(color);
-    if (dirigida_ || sentido_ == 1) p->drawPolygon(flechaFinal_);
-    if (!dirigida_ && sentido_ == -1) p->drawPolygon(flechaInicial_);
+    if (dirigida_ || sentido_ == 1 || sentido_ == 2) p->drawPolygon(flechaFinal_);
+    if (!dirigida_ && (sentido_ == -1 || sentido_ == 2)) p->drawPolygon(flechaInicial_);
 }
 
 // ============================================================

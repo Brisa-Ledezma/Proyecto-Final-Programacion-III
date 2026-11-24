@@ -7,6 +7,10 @@
 #include "core/Recorrer.h"
 
 #include <QAbstractItemView>
+#include <QCloseEvent>
+#include <QEvent>
+#include <QKeyEvent>
+#include <QScreen>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -39,6 +43,8 @@ const int ANCHO_COLUMNA_IZQUIERDA = 440; // medidas base: se multiplican por tem
 const int ALTO_LIENZO = 440;
 const int ALTO_FILA_TABLA = 44;
 const int MAXIMO_DESHACER = 100; // ediciones que se pueden deshacer
+const int NODOS_PARA_DIFERIR_CALCULO = 20; // con más nodos, el recálculo espera a que terminen los cambios seguidos
+const int DEMORA_RECALCULO_MS = 80;
 
 QString aQString(const std::string& s) { return QString::fromStdString(s); }
 
@@ -86,9 +92,8 @@ QTableWidget* crearTabla(const QStringList& columnas, int columnaElastica) {
     t->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     t->verticalHeader()->setDefaultSectionSize(tema::px(ALTO_FILA_TABLA));
     t->setShowGrid(false);
-    t->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    t->setEditTriggers(QAbstractItemView::CurrentChanged | QAbstractItemView::DoubleClicked); // solo las celdas de peso son editables
     t->setSelectionMode(QAbstractItemView::NoSelection);
-    t->setFocusPolicy(Qt::NoFocus);
     t->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // la página es la que hace scroll
     t->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     t->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
@@ -112,6 +117,31 @@ QTableWidgetItem* itemTexto(const QString& texto) {
     return i;
 }
 
+QTableWidgetItem* itemTilde(bool marcado) {
+    auto* i = new QTableWidgetItem;
+    i->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
+    i->setCheckState(marcado ? Qt::Checked : Qt::Unchecked);
+    i->setTextAlignment(Qt::AlignCenter);
+    return i;
+}
+
+QTableWidgetItem* itemQuitar(const QString& ayuda) {
+    auto* i = new QTableWidgetItem(QStringLiteral("✕"));
+    i->setFlags(Qt::ItemIsEnabled);
+    i->setTextAlignment(Qt::AlignCenter);
+    i->setForeground(tema::tenue());
+    i->setToolTip(ayuda);
+    return i;
+}
+
+QTableWidgetItem* itemPeso(int valor) {
+    auto* i = new QTableWidgetItem;
+    i->setData(Qt::EditRole, valor);
+    i->setFlags(Qt::ItemIsEnabled | Qt::ItemIsEditable);
+    i->setTextAlignment(Qt::AlignCenter);
+    return i;
+}
+
 QToolButton* botonQuitar(const QString& ayuda) {
     auto* b = new QToolButton;
     b->setObjectName(QStringLiteral("quitar"));
@@ -121,14 +151,21 @@ QToolButton* botonQuitar(const QString& ayuda) {
     return b;
 }
 
+bool confirmar(QWidget* padre, const QString& titulo, const QString& texto) {
+    return QMessageBox::question(padre, titulo, texto) == QMessageBox::Yes;
+}
+
 // Rellena un combo con los nombres de los nodos, conservando la selección si se puede.
-void llenarCombo(QComboBox* combo, const grafos::Grafo& g, int indicePorDefecto) {
+// Con `sinSeleccionSiDesaparece`, si el nodo elegido ya no existe el combo queda vacío en vez de saltar
+// a otro nodo (así no cambia el origen o el destino sin que se note).
+void llenarCombo(QComboBox* combo, const grafos::Grafo& g, int indicePorDefecto, bool sinSeleccionSiDesaparece = false) {
     const QSignalBlocker bloqueo(combo);
     const QString anterior = combo->currentText();
     combo->clear();
     recorrer(0, g.cantidadNodos(), [&](int i) { combo->addItem(aQString(g.nodo(i).nombre)); });
     const int encontrado = combo->findText(anterior);
     if (encontrado >= 0) combo->setCurrentIndex(encontrado);
+    else if (sinSeleccionSiDesaparece && !anterior.isEmpty()) combo->setCurrentIndex(-1);
     else if (indicePorDefecto >= 0 && indicePorDefecto < combo->count()) combo->setCurrentIndex(indicePorDefecto);
 }
 
@@ -165,6 +202,7 @@ void VentanaPrincipal::crearAtajosDeZoom() {
 }
 
 void VentanaPrincipal::cambiarEscala(double nueva) {
+    if (QWidget* w = QApplication::focusWidget()) w->clearFocus(); // confirma un peso a medio escribir
     nueva = std::round(nueva * 10.0) / 10.0; // evita acumular errores de decimales
     if (nueva < tema::ESCALA_MINIMA) nueva = tema::ESCALA_MINIMA;
     if (nueva > tema::ESCALA_MAXIMA) nueva = tema::ESCALA_MAXIMA;
@@ -253,7 +291,7 @@ QFrame* VentanaPrincipal::tarjetaLienzo() {
 
     auto* barra = new QHBoxLayout;
     barra->setSpacing(10);
-    barra->addWidget(pista(QStringLiteral("Clic en el fondo: nuevo nodo  ·  Arrastrar: mover  ·  "
+    barra->addWidget(pista(QStringLiteral("Doble clic en el fondo: nuevo nodo  ·  Arrastrar: mover  ·  "
                                           "Clic derecho: opciones  ·  Ctrl + rueda: zoom")), 1);
     auto* botonRepetir = new QPushButton(QStringLiteral("▶  Ver recorrido"));
     auto* botonAjustar = new QPushButton(QStringLiteral("Ajustar vista"));
@@ -264,6 +302,7 @@ QFrame* VentanaPrincipal::tarjetaLienzo() {
     lienzo_ = new LienzoGrafo(&grafo_);
     lienzo_->setFixedHeight(ALTO_LIENZO);
     lienzo_->alHacerClicEnVacio = [this](QPointF p) { agregarNodo(p, true); };
+    lienzo_->alEmpezarArrastre = [this]() { guardarParaDeshacer(); }; // mover un nodo también se deshace
     lienzo_->alPedirMenuNodo = [this](int i, QPoint p) { menuNodo(i, p); };
     lienzo_->alPedirMenuArista = [this](int i, QPoint p) { menuArista(i, p); };
     c->addWidget(lienzo_);
@@ -300,10 +339,11 @@ QFrame* VentanaPrincipal::tarjetaNodos() {
     formulario->setVerticalSpacing(6);
     nombreNodo_ = new QLineEdit;
     nombreNodo_->setPlaceholderText(QStringLiteral("Vacío = siguiente número libre"));
-    // Solo un número desde 1: el primer dígito no puede ser 0
-    nombreNodo_->setValidator(new QRegularExpressionValidator(
-        QRegularExpression(QStringLiteral("([1-9][0-9]{0,%1})?").arg(grafos::Grafo::LARGO_MAXIMO_NOMBRE - 1)), nombreNodo_));
-    nombreNodo_->setMaxLength(grafos::Grafo::LARGO_MAXIMO_NOMBRE);
+    // Solo dígitos. Se deja tipear (o pegar) de más y el largo, el 0 inicial y los repetidos se avisan al
+    // agregar: así no se recorta nada en silencio ni se traba el borrado de un dígito.
+    nombreNodo_->setValidator(new QRegularExpressionValidator(QRegularExpression(QStringLiteral("[0-9]{0,12}")), nombreNodo_));
+    nombreNodo_->setMaxLength(12);
+    nombreNodo_->installEventFilter(this);
     nombreNodo_->setInputMethodHints(Qt::ImhDigitsOnly);
     auto* agregar = new QPushButton(QStringLiteral("Agregar"));
     agregar->setObjectName(QStringLiteral("principal"));
@@ -320,6 +360,31 @@ QFrame* VentanaPrincipal::tarjetaNodos() {
 
     connect(agregar, &QPushButton::clicked, this, [this]() { agregarNodo(QPointF(), false); });
     connect(nombreNodo_, &QLineEdit::returnPressed, this, [this]() { agregarNodo(QPointF(), false); });
+
+    // Una sola conexión para toda la tabla: la fila se lee del propio ítem (no hay lambdas por fila)
+    connect(tablaNodos_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* it) {
+        const int i = it->row();
+        if (i < 0 || i >= grafo_.cantidadNodos() || (it->column() != 1 && it->column() != 2)) return;
+        const bool v = it->checkState() == Qt::Checked;
+        if (it->column() == 2 && v && !grafo_.nodo(i).obligatorio && cantidadObligatorios(0) >= grafos::MAXIMO_OBLIGATORIOS) {
+            { const QSignalBlocker b(tablaNodos_); it->setCheckState(Qt::Unchecked); }
+            QMessageBox::warning(this, QStringLiteral("Demasiados obligatorios"),
+                                 QStringLiteral("Como máximo puede haber %1 nodos obligatorios (probar todos los órdenes "
+                                                "sería demasiado lento).").arg(grafos::MAXIMO_OBLIGATORIOS));
+            return;
+        }
+        guardarParaDeshacer();
+        if (it->column() == 1) grafo_.setBloqueado(i, v); else grafo_.setObligatorio(i, v);
+        // Bloqueado y obligatorio se excluyen: se refleja en la otra casilla
+        const QSignalBlocker b(tablaNodos_);
+        tablaNodos_->item(i, 1)->setCheckState(grafo_.nodo(i).bloqueado ? Qt::Checked : Qt::Unchecked);
+        tablaNodos_->item(i, 2)->setCheckState(grafo_.nodo(i).obligatorio ? Qt::Checked : Qt::Unchecked);
+        lienzo_->setFiltros(filtros());
+        cambio();
+    });
+    connect(tablaNodos_, &QTableWidget::cellClicked, this, [this](int fila, int columna) {
+        if (columna == 3) quitarFilaDiferido(true, fila);
+    });
     return marco;
 }
 
@@ -369,49 +434,63 @@ QFrame* VentanaPrincipal::tarjetaAristas() {
 
     // El tipo es del grafo entero: convierte todas las aristas
     connect(tipoArista_, &QComboBox::currentIndexChanged, this, [this](int indice) {
+        const bool haciaDirigido = indice == 1;
+        const int pierde = grafo_.aristasQuePierdenDatos(haciaDirigido);
+        if (pierde > 0) {
+            const QString que = haciaDirigido
+                ? QStringLiteral("%1 arista(s) tienen un peso de vuelta distinto del de ida: ese peso de vuelta se va a descartar.").arg(pierde)
+                : QStringLiteral("%1 par(es) de aristas opuestas se juntan en una sola y solo una de las dos estaba bloqueada: el bloqueo va a valer para las dos.").arg(pierde);
+            if (!confirmar(this, QStringLiteral("Cambiar el tipo de grafo"),
+                           que + QStringLiteral("\n\nPodés recuperarlo con «Deshacer» mientras no hagas muchos cambios más. ¿Seguir?"))) {
+                sincronizarTipo(); // vuelve el selector a como estaba
+                return;
+            }
+        }
         guardarParaDeshacer();
         grafo_.setDirigido(indice == 1);
         refrescarTodo();
     });
     connect(agregar, &QPushButton::clicked, this, [this]() { agregarArista(); });
+
+    tablaAristas_->setItemDelegateForColumn(1, new DelegadoPeso(tablaAristas_));
+    tablaAristas_->setItemDelegateForColumn(2, new DelegadoPeso(tablaAristas_));
+    connect(tablaAristas_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* it) {
+        const int k = it->row();
+        const int c = it->column();
+        if (k < 0 || k >= grafo_.cantidadAristas() || c < 1 || c > 3) return;
+        grafos::Arista& a = grafo_.arista(k);
+        if (c == 3) {
+            guardarParaDeshacer();
+            a.bloqueada = it->checkState() == Qt::Checked;
+            lienzo_->setFiltros(filtros());
+            cambio();
+            return;
+        }
+        const int v = it->data(Qt::EditRole).toInt();
+        if ((c == 1 && v == a.pesoIda) || (c == 2 && v == a.pesoVuelta)) return;
+        guardarParaDeshacer();
+        if (c == 1) { a.pesoIda = v; if (a.dirigida) a.pesoVuelta = v; }
+        else a.pesoVuelta = v;
+        lienzo_->reconstruir();
+        cambio();
+    });
+    connect(tablaAristas_, &QTableWidget::cellClicked, this, [this](int fila, int columna) {
+        if (columna == 4) quitarFilaDiferido(false, fila);
+    });
     return marco;
 }
 
 QFrame* VentanaPrincipal::tarjetaFiltros() {
     QVBoxLayout* c = nullptr;
     QFrame* marco = tarjeta(QStringLiteral("Filtros"), c);
-    evitarPares_ = new QCheckBox(QStringLiteral("Evitar nodos pares  (nodo n.º 2, 4, 6…)"));
-    evitarImpares_ = new QCheckBox(QStringLiteral("Evitar nodos impares  (nodo n.º 1, 3, 5…)"));
     evitarAristasPares_ = new QCheckBox(QStringLiteral("Evitar aristas de peso par  (2, 4, 6…)"));
     evitarAristasImpares_ = new QCheckBox(QStringLiteral("Evitar aristas de peso impar  (1, 3, 5…)"));
-    c->addWidget(rotulo(QStringLiteral("NODOS")));
-    c->addWidget(evitarPares_);
-    c->addWidget(evitarImpares_);
     c->addWidget(rotulo(QStringLiteral("ARISTAS")));
     c->addWidget(evitarAristasPares_);
     c->addWidget(evitarAristasImpares_);
-    soloPositivos_ = new QCheckBox(QStringLiteral("Solo pesos positivos  (el 0 no cuenta)"));
-    soloNegativos_ = new QCheckBox(QStringLiteral("Solo pesos negativos  (el 0 no cuenta)"));
-    c->addWidget(soloPositivos_);
-    c->addWidget(soloNegativos_);
-
-    auto* fila = new QGridLayout;
-    fila->setHorizontalSpacing(10);
-    fila->setVerticalSpacing(6);
-    pesoABloquear_ = crearSpin(1);
-    auto* bloquearPeso = new QPushButton(QStringLiteral("Bloquear peso"));
-    fila->addWidget(rotulo(QStringLiteral("BLOQUEAR ARISTAS DE PESO")), 0, 0, 1, 2);
-    fila->addWidget(pesoABloquear_, 1, 0);
-    fila->addWidget(bloquearPeso, 1, 1);
-    fila->setColumnStretch(0, 1);
-    c->addLayout(fila);
-    listaPesos_ = new QWidget;
-    listaPesos_->setLayout(new QGridLayout);
-    listaPesos_->layout()->setContentsMargins(0, 0, 0, 0);
-    c->addWidget(listaPesos_);
-    c->addWidget(pista(QStringLiteral("Los filtros de aristas (par, impar, positivo, negativo o un peso) cortan cada sentido que pesa eso: en "
-                                      "una no dirigida con ida 4 y vuelta 3, evitar pares corta solo la ida. Para evitar un "
-                                      "nodo o una arista puntual, tildá «Bloq.» en su tabla o hacé clic derecho en el dibujo.")));
+    c->addWidget(pista(QStringLiteral("Los filtros de aristas cortan cada sentido que pesa par o impar: en una no dirigida "
+                                      "con ida 4 y vuelta 3, evitar pares corta solo la ida. Para no pasar por un nodo o una "
+                                      "arista puntual, tildá «Bloq.» en su tabla o hacé clic derecho en el dibujo.")));
 
     filtrosActivos_ = pista(QString());
     c->addWidget(filtrosActivos_);
@@ -419,33 +498,10 @@ QFrame* VentanaPrincipal::tarjetaFiltros() {
     c->addWidget(quitarFiltros_);
     connect(quitarFiltros_, &QPushButton::clicked, this, [this]() { quitarFiltros(); });
 
-    const auto alCambiar = [this](bool) {
-        lienzo_->setFiltros(filtros());
-        cambio();
-    };
-    connect(evitarPares_, &QCheckBox::toggled, this, alCambiar);
-    connect(evitarImpares_, &QCheckBox::toggled, this, alCambiar);
-    connect(evitarAristasPares_, &QCheckBox::toggled, this, alCambiar);
-    connect(evitarAristasImpares_, &QCheckBox::toggled, this, alCambiar);
-    // Solo positivos y solo negativos son excluyentes: tildar uno destilda el otro
-    connect(soloPositivos_, &QCheckBox::toggled, this, [this](bool v) {
-        if (v) {
-            const QSignalBlocker b(soloNegativos_);
-            soloNegativos_->setChecked(false);
-        }
-        lienzo_->setFiltros(filtros());
-        cambio();
-    });
-    connect(soloNegativos_, &QCheckBox::toggled, this, [this](bool v) {
-        if (v) {
-            const QSignalBlocker b(soloPositivos_);
-            soloPositivos_->setChecked(false);
-        }
-        lienzo_->setFiltros(filtros());
-        cambio();
-    });
-    connect(bloquearPeso, &QPushButton::clicked, this, [this]() { agregarPesoBloqueado(); });
-    refrescarPesosBloqueados();
+    connect(evitarAristasPares_, &QCheckBox::toggled, this,
+            [this](bool marcado) { guardarFiltrosYCambiar(!marcado, evitarAristasImpares_->isChecked()); });
+    connect(evitarAristasImpares_, &QCheckBox::toggled, this,
+            [this](bool marcado) { guardarFiltrosYCambiar(evitarAristasPares_->isChecked(), !marcado); });
     return marco;
 }
 
@@ -461,7 +517,7 @@ QFrame* VentanaPrincipal::tarjetaResolver() {
     algoritmo_ = new ComboSinRueda;
     algoritmo_->addItem(QStringLiteral("Dijkstra"));
     algoritmo_->addItem(QStringLiteral("Bellman-Ford"));
-    algoritmo_->addItem(QStringLiteral("Matriz de adyacencia"));
+    algoritmo_->addItem(QStringLiteral("Matriz de adyacencia (Floyd-Warshall)"));
     // Tarjeta ancha (columna derecha): origen, destino y algoritmo en una sola fila
     formulario->addWidget(rotulo(QStringLiteral("ORIGEN")), 0, 0);
     formulario->addWidget(rotulo(QStringLiteral("DESTINO")), 0, 1);
@@ -495,7 +551,8 @@ QFrame* VentanaPrincipal::tarjetaResolver() {
     fila->addWidget(ejemplo, 1);
     fila->addWidget(limpiar, 1);
     c->addLayout(fila);
-    c->addWidget(pista(QStringLiteral("Los nodos obligatorios se visitan en el orden que dé menor costo (hasta %1).")
+    c->addWidget(pista(QStringLiteral("Los nodos obligatorios se visitan en el orden que dé menor costo (hasta %1). "
+                                      "Si hay dos caminos con el mismo costo, cada algoritmo puede mostrar uno distinto: los dos son correctos.")
                            .arg(grafos::MAXIMO_OBLIGATORIOS)));
 
     const auto alCambiarExtremos = [this](int) {
@@ -544,129 +601,100 @@ void VentanaPrincipal::refrescarCombos() {
     const int n = grafo_.cantidadNodos();
     llenarCombo(desde_, grafo_, 0);
     llenarCombo(hasta_, grafo_, n > 1 ? 1 : 0);
-    llenarCombo(origen_, grafo_, 0);
-    llenarCombo(destino_, grafo_, n - 1);
+    llenarCombo(origen_, grafo_, 0, true);
+    llenarCombo(destino_, grafo_, n - 1, true);
 }
 
 void VentanaPrincipal::refrescarTablaNodos() {
     const int n = grafo_.cantidadNodos();
-    tablaNodos_->setRowCount(0); // borra también los widgets de las celdas
+    const QSignalBlocker bloqueo(tablaNodos_); // llenar la tabla no cuenta como un cambio del usuario
+    tablaNodos_->setUpdatesEnabled(false);
+    tablaNodos_->setRowCount(0);
     tablaNodos_->setRowCount(n);
     recorrer(0, n, [&](int i) {
         const grafos::Nodo& nodo = grafo_.nodo(i);
-        // El filtro par/impar usa la posición del nodo (n.º), que puede no coincidir con su nombre
-        const QString nombre = aQString(nodo.nombre);
-        const QString posicion = QString::number(i + 1);
-        tablaNodos_->setItem(i, 0, itemTexto(nombre == posicion ? nombre
-                                                                : nombre + QStringLiteral("   (n.º ") + posicion + QStringLiteral(")")));
-
-        auto* bloqueado = new QCheckBox;
-        auto* obligatorio = new QCheckBox;
-        bloqueado->setChecked(nodo.bloqueado);
-        obligatorio->setChecked(nodo.obligatorio);
-        // Uno u otro: tildar uno destilda el otro
-        connect(bloqueado, &QCheckBox::toggled, this, [this, i, obligatorio](bool v) {
-            guardarParaDeshacer();
-            grafo_.setBloqueado(i, v);
-            if (v) {
-                const QSignalBlocker b(obligatorio);
-                obligatorio->setChecked(false);
-            }
-            lienzo_->setFiltros(filtros());
-            cambio();
-        });
-        connect(obligatorio, &QCheckBox::toggled, this, [this, i, bloqueado](bool v) {
-            guardarParaDeshacer();
-            grafo_.setObligatorio(i, v);
-            if (v) {
-                const QSignalBlocker b(bloqueado);
-                bloqueado->setChecked(false);
-            }
-            lienzo_->setFiltros(filtros());
-            cambio();
-        });
-        tablaNodos_->setCellWidget(i, 1, centrado(bloqueado));
-        tablaNodos_->setCellWidget(i, 2, centrado(obligatorio));
-
-        auto* quitar = botonQuitar(QStringLiteral("Quitar nodo"));
-        // Diferido: no se puede borrar la tabla mientras se procesa el clic de su botón
-        connect(quitar, &QToolButton::clicked, this, [this, i]() {
-            QTimer::singleShot(0, this, [this, i]() { eliminarNodo(i); });
-        });
-        tablaNodos_->setCellWidget(i, 3, centrado(quitar));
+        auto* texto = itemTexto(aQString(nodo.nombre));
+        texto->setFlags(Qt::ItemIsEnabled);
+        tablaNodos_->setItem(i, 0, texto);
+        tablaNodos_->setItem(i, 1, itemTilde(nodo.bloqueado));
+        tablaNodos_->setItem(i, 2, itemTilde(nodo.obligatorio));
+        tablaNodos_->setItem(i, 3, itemQuitar(QStringLiteral("Quitar nodo")));
     });
     ajustarAltoTabla(tablaNodos_);
+    tablaNodos_->setUpdatesEnabled(true);
 }
 
 void VentanaPrincipal::refrescarTablaAristas() {
     const int m = grafo_.cantidadAristas();
+    const QSignalBlocker bloqueo(tablaAristas_);
+    tablaAristas_->setUpdatesEnabled(false);
     tablaAristas_->setRowCount(0);
     tablaAristas_->setRowCount(m);
     recorrer(0, m, [&](int k) {
         const grafos::Arista& e = grafo_.arista(k);
-        tablaAristas_->setItem(k, 0, itemTexto(aQString(grafo_.describirArista(k))));
-
-        auto* ida = spinDeTabla(e.pesoIda);
-        connect(ida, &QSpinBox::valueChanged, this, [this, k](int v) {
-            guardarParaDeshacer();
-            grafos::Arista& a = grafo_.arista(k);
-            a.pesoIda = v;
-            if (a.dirigida) a.pesoVuelta = v;
-            lienzo_->reconstruir();
-            cambio();
-        });
-        tablaAristas_->setCellWidget(k, 1, centrado(ida));
-
+        auto* texto = itemTexto(aQString(grafo_.describirArista(k)));
+        texto->setFlags(Qt::ItemIsEnabled);
+        tablaAristas_->setItem(k, 0, texto);
+        tablaAristas_->setItem(k, 1, itemPeso(e.pesoIda));
         if (e.dirigida) {
             auto* guion = itemTexto(QStringLiteral("—"));
+            guion->setFlags(Qt::ItemIsEnabled);
             guion->setTextAlignment(Qt::Alignment(Qt::AlignCenter));
             guion->setForeground(tema::tenue());
             tablaAristas_->setItem(k, 2, guion);
         } else {
-            auto* vuelta = spinDeTabla(e.pesoVuelta);
-            connect(vuelta, &QSpinBox::valueChanged, this, [this, k](int v) {
-                guardarParaDeshacer();
-                grafo_.arista(k).pesoVuelta = v;
-                lienzo_->reconstruir();
-                cambio();
-            });
-            tablaAristas_->setCellWidget(k, 2, centrado(vuelta));
+            tablaAristas_->setItem(k, 2, itemPeso(e.pesoVuelta));
         }
-
-        auto* bloqueada = new QCheckBox;
-        bloqueada->setChecked(e.bloqueada);
-        connect(bloqueada, &QCheckBox::toggled, this, [this, k](bool v) {
-            guardarParaDeshacer();
-            grafo_.arista(k).bloqueada = v;
-            lienzo_->setFiltros(filtros());
-            cambio();
-        });
-        tablaAristas_->setCellWidget(k, 3, centrado(bloqueada));
-
-        auto* quitar = botonQuitar(QStringLiteral("Quitar arista"));
-        connect(quitar, &QToolButton::clicked, this, [this, k]() {
-            QTimer::singleShot(0, this, [this, k]() { eliminarArista(k); });
-        });
-        tablaAristas_->setCellWidget(k, 4, centrado(quitar));
+        tablaAristas_->setItem(k, 3, itemTilde(e.bloqueada));
+        tablaAristas_->setItem(k, 4, itemQuitar(QStringLiteral("Quitar arista")));
     });
     ajustarAltoTabla(tablaAristas_);
+    tablaAristas_->setUpdatesEnabled(true);
+}
+
+// "✕" de una fila. Diferido (no se puede reconstruir la tabla dentro de su propio clic) y con un
+// breve bloqueo: un doble clic accidental ya no borra también la fila que sube a ese lugar.
+void VentanaPrincipal::quitarFilaDiferido(bool esNodo, int fila) {
+    if (quitandoFila_) return;
+    quitandoFila_ = true;
+    // Si había un peso a medio escribir, se confirma ahora (antes de que las filas se corran de lugar)
+    if (QWidget* w = QApplication::focusWidget()) w->clearFocus();
+    QTimer::singleShot(0, this, [this, esNodo, fila]() {
+        if (esNodo) eliminarNodo(fila); else eliminarArista(fila);
+        QTimer::singleShot(350, this, [this]() { quitandoFila_ = false; });
+    });
 }
 
 // Después del primer cálculo, cualquier cambio vuelve a calcular (como el prototipo).
 void VentanaPrincipal::cambio() {
     actualizarEstado();
     if (calculado_) {
-        calcular(false);
+        // Con muchos nodos el resultado (sobre todo la matriz) tarda en armarse: si llegan varios
+        // cambios seguidos (por ejemplo Enter repetido) se recalcula una sola vez al final.
+        if (grafo_.cantidadNodos() > NODOS_PARA_DIFERIR_CALCULO) diferirCalculo();
+        else calcular(false);
         return;
     }
     lienzo_->setResultado(nullptr, false);
+}
+
+void VentanaPrincipal::diferirCalculo() {
+    if (recalculo_ == nullptr) {
+        recalculo_ = new QTimer(this);
+        recalculo_->setSingleShot(true);
+        connect(recalculo_, &QTimer::timeout, this, [this]() {
+            if (calculado_) calcular(false);
+        });
+    }
+    recalculo_->start(DEMORA_RECALCULO_MS); // cada cambio nuevo reinicia la espera
 }
 
 // ============================================================
 //  Acciones
 // ============================================================
 void VentanaPrincipal::agregarNodo(QPointF posicion, bool posicionElegida) {
-    const QString escrito = nombreNodo_->text().trimmed();
+    // Un clic en el dibujo usa siempre el siguiente número libre (no el que haya tipeado en el campo)
+    const QString escrito = posicionElegida ? QString() : nombreNodo_->text().trimmed();
     const std::string nombre = escrito.isEmpty() ? grafo_.siguienteNombreLibre() : escrito.toStdString();
     const std::string error = grafo_.validarNombre(nombre);
     if (!error.empty()) {
@@ -678,11 +706,21 @@ void VentanaPrincipal::agregarNodo(QPointF posicion, bool posicionElegida) {
     const QPointF libre = lienzo_->posicionLibre(deseada, radio, -1); // nunca encima de otro nodo
     guardarParaDeshacer();
     grafo_.agregarNodo(nombre, libre.x(), libre.y());
-    nombreNodo_->clear();
+    if (!posicionElegida) nombreNodo_->clear();
     refrescarTodo();
+    lienzo_->asegurarVisible(libre); // si no entró en la vista, se desplaza hasta el nodo nuevo
 }
 
 void VentanaPrincipal::agregarArista() {
+    const auto vacio = [](const QSpinBox* s) {
+        const QString t = s->text().trimmed();
+        return t.isEmpty() || t == QStringLiteral("-");
+    };
+    if (vacio(pesoIda_) || (!grafo_.dirigido() && vacio(pesoVuelta_))) {
+        QMessageBox::warning(this, QStringLiteral("No se puede agregar la arista"),
+                             QStringLiteral("Escribí un peso (un número entero entre -99999 y 99999)."));
+        return;
+    }
     pesoIda_->interpretText(); // toma lo tipeado aunque el campo siga con el foco
     pesoVuelta_->interpretText();
     const int a = desde_->currentIndex();
@@ -712,88 +750,42 @@ void VentanaPrincipal::eliminarArista(int indice) {
 
 grafos::Filtros VentanaPrincipal::filtros() const {
     grafos::Filtros f;
-    f.evitarPares = evitarPares_->isChecked();
-    f.evitarImpares = evitarImpares_->isChecked();
-    f.pesosBloqueados = pesosBloqueados_;
     f.evitarAristasPares = evitarAristasPares_->isChecked();
     f.evitarAristasImpares = evitarAristasImpares_->isChecked();
-    f.soloPositivos = soloPositivos_->isChecked();
-    f.soloNegativos = soloNegativos_->isChecked();
     return f;
 }
 
-// ---- pesos bloqueados: una lista de botones "peso 4 ✕" ----
-void VentanaPrincipal::refrescarPesosBloqueados() {
-    auto* grilla = static_cast<QGridLayout*>(listaPesos_->layout());
-    // Borra los botones anteriores (recursivo, sin while)
-    std::function<void()> vaciar = [&]() {
-        QLayoutItem* item = grilla->takeAt(0);
-        if (item == nullptr) return;
-        if (item->widget() != nullptr) item->widget()->deleteLater();
-        delete item;
-        vaciar();
-    };
-    vaciar();
-    const int POR_FILA = 4;
-    recorrer(0, static_cast<int>(pesosBloqueados_.size()), [&](int i) {
-        const int peso = pesosBloqueados_[i];
-        auto* chip = new QToolButton;
-        chip->setObjectName(QStringLiteral("chipPeso"));
-        chip->setText(QStringLiteral("peso %1  ✕").arg(peso));
-        chip->setToolTip(QStringLiteral("Quitar el bloqueo del peso %1").arg(peso));
-        connect(chip, &QToolButton::clicked, this, [this, peso]() {
-            QTimer::singleShot(0, this, [this, peso]() { quitarPesoBloqueado(peso); });
-        });
-        grilla->addWidget(chip, i / POR_FILA, i % POR_FILA);
-    });
-    grilla->setColumnStretch(POR_FILA, 1);
-    listaPesos_->setVisible(!pesosBloqueados_.empty());
-}
-
-void VentanaPrincipal::agregarPesoBloqueado() {
-    pesoABloquear_->interpretText(); // toma lo tipeado aunque no se haya salido del campo
-    const int peso = pesoABloquear_->value();
-    if (grafos::pesoBloqueado(filtros(), peso)) {
-        QMessageBox::information(this, QStringLiteral("Peso ya bloqueado"),
-                                 QStringLiteral("El peso %1 ya está bloqueado.").arg(peso));
-        return;
-    }
-    pesosBloqueados_.push_back(peso);
-    refrescarPesosBloqueados();
+// Tildar o destildar un filtro: se guarda el estado anterior (el filtro ya cambió, así que se
+// guarda con el valor previo) para que Ctrl + Z lo deshaga.
+void VentanaPrincipal::guardarFiltrosYCambiar(bool paresAntes, bool imparesAntes) {
+    Estado e;
+    e.grafo = grafo_;
+    e.origen = origen_->currentIndex();
+    e.destino = destino_->currentIndex();
+    e.evitarPares = paresAntes;
+    e.evitarImpares = imparesAntes;
+    historial_.push_back(e);
+    if (static_cast<int>(historial_.size()) > MAXIMO_DESHACER) historial_.erase(historial_.begin());
+    deshacer_->setEnabled(true);
     lienzo_->setFiltros(filtros());
     cambio();
 }
 
-void VentanaPrincipal::quitarPesoBloqueado(int peso) {
-    std::vector<int> quedan;
-    recorrer(0, static_cast<int>(pesosBloqueados_.size()), [&](int i) {
-        if (pesosBloqueados_[i] != peso) quedan.push_back(pesosBloqueados_[i]);
-    });
-    pesosBloqueados_ = quedan;
-    refrescarPesosBloqueados();
-    lienzo_->setFiltros(filtros());
-    cambio();
+int VentanaPrincipal::cantidadObligatorios(int i) const {
+    if (i >= grafo_.cantidadNodos()) return 0;
+    return (grafo_.nodo(i).obligatorio ? 1 : 0) + cantidadObligatorios(i + 1);
 }
 
 void VentanaPrincipal::limpiarFiltros() {
-    const QSignalBlocker b1(evitarPares_);
-    const QSignalBlocker b2(evitarImpares_);
-    const QSignalBlocker b3(evitarAristasPares_);
-    const QSignalBlocker b4(evitarAristasImpares_);
-    const QSignalBlocker b5(soloPositivos_);
-    const QSignalBlocker b6(soloNegativos_);
-    evitarPares_->setChecked(false);
-    evitarImpares_->setChecked(false);
+    const QSignalBlocker b1(evitarAristasPares_);
+    const QSignalBlocker b2(evitarAristasImpares_);
     evitarAristasPares_->setChecked(false);
     evitarAristasImpares_->setChecked(false);
-    soloPositivos_->setChecked(false);
-    soloNegativos_->setChecked(false);
-    pesosBloqueados_.clear();
-    refrescarPesosBloqueados();
 }
 
 // "Quitar filtros": apaga todos los filtros y desbloquea los nodos y aristas que estaban bloqueados
 void VentanaPrincipal::quitarFiltros() {
+    guardarParaDeshacer(); // también se deshace
     limpiarFiltros();
     recorrer(0, grafo_.cantidadNodos(), [&](int i) { grafo_.setBloqueado(i, false); });
     recorrer(0, grafo_.cantidadAristas(), [&](int k) { grafo_.arista(k).bloqueada = false; });
@@ -807,14 +799,8 @@ void VentanaPrincipal::actualizarEstado() {
                                    : QStringLiteral("%1 nodos en el lienzo").arg(n));
 
     QStringList activos;
-    if (evitarPares_->isChecked()) activos << QStringLiteral("nodos pares");
-    if (evitarImpares_->isChecked()) activos << QStringLiteral("nodos impares");
     if (evitarAristasPares_->isChecked()) activos << QStringLiteral("aristas pares");
     if (evitarAristasImpares_->isChecked()) activos << QStringLiteral("aristas impares");
-    if (soloPositivos_->isChecked()) activos << QStringLiteral("solo positivos");
-    if (soloNegativos_->isChecked()) activos << QStringLiteral("solo negativos");
-    recorrer(0, static_cast<int>(pesosBloqueados_.size()),
-             [&](int i) { activos << QStringLiteral("peso %1").arg(pesosBloqueados_[i]); });
     recorrer(0, n, [&](int i) {
         if (grafo_.nodo(i).bloqueado) activos << QStringLiteral("nodo ") + aQString(grafo_.nodo(i).nombre);
     });
@@ -832,6 +818,8 @@ void VentanaPrincipal::guardarParaDeshacer() {
     e.grafo = grafo_;
     e.origen = origen_->currentIndex();
     e.destino = destino_->currentIndex();
+    e.evitarPares = evitarAristasPares_->isChecked();
+    e.evitarImpares = evitarAristasImpares_->isChecked();
     historial_.push_back(e);
     if (static_cast<int>(historial_.size()) > MAXIMO_DESHACER) historial_.erase(historial_.begin());
     deshacer_->setEnabled(true);
@@ -839,9 +827,16 @@ void VentanaPrincipal::guardarParaDeshacer() {
 
 void VentanaPrincipal::deshacer() {
     if (historial_.empty()) return;
+    if (QApplication::mouseButtons() & Qt::LeftButton) return; // no se deshace a mitad de un arrastre
     const Estado e = historial_.back();
     historial_.pop_back();
     grafo_ = e.grafo;
+    {
+        const QSignalBlocker b1(evitarAristasPares_);
+        const QSignalBlocker b2(evitarAristasImpares_);
+        evitarAristasPares_->setChecked(e.evitarPares);
+        evitarAristasImpares_->setChecked(e.evitarImpares);
+    }
     if (grafo_.cantidadNodos() == 0) {
         calculado_ = false;
         resultado_->mostrarVacio();
@@ -866,6 +861,7 @@ grafos::Algoritmo VentanaPrincipal::algoritmoElegido() const {
 
 void VentanaPrincipal::calcular(bool animar) {
     calculado_ = true;
+    if (recalculo_ != nullptr) recalculo_->stop(); // ya se calcula ahora: no repetir
     const grafos::Resultado r = grafos::resolver(grafo_, origen_->currentIndex(), destino_->currentIndex(),
                                                  algoritmoElegido(), filtros());
     resultado_->mostrar(grafo_, r);
@@ -875,6 +871,10 @@ void VentanaPrincipal::calcular(bool animar) {
 void VentanaPrincipal::cargarEjemplo() {
     int origen = 0;
     int destino = 0;
+    if (grafo_.cantidadNodos() > 0 &&
+        !confirmar(this, QStringLiteral("Cargar ejemplo"),
+                   QStringLiteral("Se va a reemplazar el grafo actual por el ejemplo (podés volver con «Deshacer»). ¿Seguir?")))
+        return;
     guardarParaDeshacer();
     grafo_.cargarEjemplo(origen, destino);
     limpiarFiltros();
@@ -933,6 +933,11 @@ void VentanaPrincipal::menuNodo(int indice, QPoint posicionPantalla) {
     if (elegida == nullptr) return;
     if (elegida == comoOrigen) { origen_->setCurrentIndex(indice); return; }
     if (elegida == comoDestino) { destino_->setCurrentIndex(indice); return; }
+    if (elegida == obligatorio && !nodo.obligatorio && cantidadObligatorios(0) >= grafos::MAXIMO_OBLIGATORIOS) {
+        QMessageBox::warning(this, QStringLiteral("Demasiados obligatorios"),
+                             QStringLiteral("Como máximo puede haber %1 nodos obligatorios.").arg(grafos::MAXIMO_OBLIGATORIOS));
+        return;
+    }
     if (elegida == bloquear || elegida == obligatorio) guardarParaDeshacer();
     if (elegida == bloquear) grafo_.setBloqueado(indice, !nodo.bloqueado);
     if (elegida == obligatorio) grafo_.setObligatorio(indice, !nodo.obligatorio);
@@ -962,4 +967,26 @@ void VentanaPrincipal::menuArista(int indice, QPoint posicionPantalla) {
         if (borrar) eliminarArista(indice);
         else refrescarTodo();
     });
+}
+
+// ============================================================
+//  Eventos de la ventana
+// ============================================================
+bool VentanaPrincipal::eventFilter(QObject* objeto, QEvent* evento) {
+    // Mantener apretado Enter en "Número del nodo" repite la tecla decenas de veces por segundo y crearía
+    // cientos de nodos: solo cuenta la primera pulsación.
+    if (objeto == nombreNodo_ && evento->type() == QEvent::KeyPress) {
+        const auto* tecla = static_cast<QKeyEvent*>(evento);
+        if ((tecla->key() == Qt::Key_Return || tecla->key() == Qt::Key_Enter) && tecla->isAutoRepeat()) return true;
+    }
+    return QMainWindow::eventFilter(objeto, evento);
+}
+
+void VentanaPrincipal::closeEvent(QCloseEvent* evento) {
+    if (grafo_.cantidadNodos() > 0 &&
+        !confirmar(this, QStringLiteral("Cerrar"), QStringLiteral("Hay un grafo armado y no se guarda. ¿Cerrar igual?"))) {
+        evento->ignore();
+        return;
+    }
+    QMainWindow::closeEvent(evento);
 }

@@ -6,7 +6,7 @@
 //  aristas (dirigidas con un peso, o no dirigidas con peso de
 //  ida y de vuelta). C++ puro, no depende de Qt.
 //  El nombre de un nodo es un número entero desde 1 (1, 7,
-//  23443...). Ese número decide si el nodo es par o impar.
+//  23443...).
 // ============================================================
 
 #include <string>
@@ -45,10 +45,6 @@ public:
     // Busca un nodo por nombre. -1 si no está.
     int indiceDe(const std::string& nombre) const;
 
-    // Número del nodo: su posición en el grafo (1 = primer nodo, 2 = segundo...), no su nombre.
-    // Lo usan los filtros par/impar, así que valen aunque el nombre sea "casa".
-    long numeroDeNodo(int indice) const;
-
     // ---- nodos ----
     // Devuelve "" si el nombre es válido o el mensaje de error.
     std::string validarNombre(const std::string& nombre) const;
@@ -68,6 +64,9 @@ public:
     // Pasar a no dirigido: A → B y B → A cargadas a mano se juntan en A — B (ida y vuelta); una sola
     // queda con el mismo peso en los dos sentidos.
     void setDirigido(bool valor);
+    // Cuántas aristas pierden información al pasar al otro tipo: al pasar a dirigido, las que tienen
+    // peso de vuelta distinto del de ida; al pasar a no dirigido, los pares opuestos con distinto bloqueo.
+    int aristasQuePierdenDatos(bool haciaDirigido) const;
 
     // ---- aristas ----
     std::string validarArista(int desde, int hasta, bool dirigida) const;
@@ -82,6 +81,9 @@ public:
     void cargarEjemplo(int& origenSugerido, int& destinoSugerido);
 
     static const int LARGO_MAXIMO_NOMBRE = 6; // hasta 999999
+    // Límites para que la aplicación siga fluida (cada cambio rearma tablas, dibujo y resultado)
+    static const int MAXIMO_NODOS = 150;
+    static const int MAXIMO_ARISTAS = 1000;
 
 private:
     std::vector<Nodo> nodos_;
@@ -91,12 +93,15 @@ private:
     bool cubreArco(const Arista& e, int u, int v) const;
     int buscarArco(int u, int v, int k) const;
     int buscarNombre(const std::string& nombre, int i) const;
-    std::string nombreLibreDesde(int k) const;
+    void marcarUsados(int i, std::vector<bool>& usado) const;
+    int primerLibre(const std::vector<bool>& usado, int k) const;
     void quitarAristasDe(int nodo, int k);
     void reindexarAristas(int nodoBorrado, int k);
     void separarEnDirigidas(int k, int total);
     void juntarOpuestas(int k);
     int buscarOpuesta(int k, int j) const;
+    int contarPerdidasADirigido(int k) const;
+    int contarPerdidasANoDirigido(int k) const;
 };
 
 // Nombre automático número k: 0->"1", 1->"2", ...

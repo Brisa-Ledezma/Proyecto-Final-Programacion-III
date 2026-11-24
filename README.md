@@ -4,21 +4,18 @@ Aplicación de escritorio en **C++17 + Qt 6** (Visual Studio 2022) que calcula e
 
 ## Funcionalidades
 
-- **Tres algoritmos:** Dijkstra, Bellman-Ford y matriz de adyacencia. La matriz de adyacencia se muestra siempre, con cualquier algoritmo.
+- **Tres algoritmos:** Dijkstra, Bellman-Ford y matriz de adyacencia (Floyd-Warshall). La matriz de adyacencia se muestra siempre (hasta 150 nodos), con cualquier algoritmo.
 - **Nodos numerados.** Cada nodo es un número desde 1 (1, 7, 23443 …, hasta 6 cifras). El campo solo deja tipear dígitos y no acepta el 0 ni números repetidos. Los nodos no tienen peso.
 - **Grafo dirigido o no dirigido**, elegido para el grafo entero. No dirigido: cada arista tiene peso de ida y peso de vuelta. Dirigido: un peso por arista. Al pasar a dirigido, `A — B` queda solo como `A → B` con el peso de ida y se descarta el de vuelta; **Deshacer** vuelve al grafo no dirigido con sus pesos.
 - **Pesos enteros.** Los campos de peso solo dejan tipear dígitos y un `-` al principio (ni punto, ni coma, ni `+`).
-- **Sin límite de nodos.** Si no se escribe un número, se usa el menor libre.
+- **Hasta 150 nodos y 1000 aristas** (para que la aplicación siga fluida). Si no se escribe un número, se usa el menor libre.
 - **Los nodos nunca se superponen.** Al crearlos o al soltarlos después de arrastrarlos se corren al lugar libre más cercano.
 - **Las aristas no pasan por encima de otros nodos.** Se curvan para esquivarlos. El dibujo se arma en capas (aristas → camino → pesos → nodos) para que nada tape a un nodo.
 - **Filtros:**
-  - bloquear una arista puntual o un nodo,
-  - evitar los nodos pares o los impares (según su número de nodo, es decir su posición: 1.º, 2.º, 3.º…, no su nombre),
-  - evitar las aristas de peso par o de peso impar,
-  - usar solo aristas de peso positivo o solo de peso negativo (son excluyentes y el 0 no cuenta como ninguno de los dos),
-  - bloquear uno o varios pesos de arista (por ejemplo, el 4 corta todas las aristas que pesan 4).
+  - no pasar por un nodo específico (se bloquea el nodo; también se puede bloquear una arista puntual),
+  - evitar las aristas de peso par o de peso impar.
 
-  Los filtros de aristas cortan solo el sentido que tiene ese peso: en una no dirigida con ida 4 y vuelta 3, bloquear el 4 corta la ida y deja la vuelta. Si el origen, el destino o un obligatorio quedan afuera, se muestra un error que dice por qué.
+  Los filtros de aristas cortan solo el sentido que tiene ese peso: en una no dirigida con ida 4 y vuelta 3, evitar pares corta la ida y deja la vuelta. Si el origen, el destino o un obligatorio quedan afuera, se muestra un error que dice por qué.
 - **Nodos obligatorios:** se prueban todos los órdenes y se queda el más barato. Un nodo puede estar bloqueado u obligatorio, no las dos cosas.
 - **Recorrido animado** paso a paso sobre el dibujo, más una tabla con el **detalle de cada paso** (peso de cada tramo y costo acumulado).
 - **Tema oscuro con detalles rosas** y scroll de toda la página.
@@ -47,7 +44,7 @@ No hace falta la extensión *Qt VS Tools*: el proyecto no usa `Q_OBJECT` (las se
 
 | Acción | Cómo |
 |---|---|
-| Agregar nodo | Escribir el número (o dejarlo vacío) y tocar **Agregar**, o hacer clic en un lugar vacío del dibujo |
+| Agregar nodo | Escribir el número (o dejarlo vacío) y tocar **Agregar**, o hacer **doble clic** en un lugar vacío del dibujo |
 | Mover nodo | Arrastrarlo |
 | Bloquear, marcar como obligatorio, usar como origen o destino, eliminar | Clic derecho sobre el nodo o la arista, o desde las tablas |
 | Zoom | Ctrl + rueda del mouse |
@@ -55,10 +52,18 @@ No hace falta la extensión *Qt VS Tools*: el proyecto no usa `Q_OBJECT` (las se
 | Agrandar / achicar la letra | Ctrl + (o Ctrl =) y Ctrl −; Ctrl 0 vuelve al tamaño inicial |
 | Desplazar el dibujo | Arrastrar el fondo |
 | Desplazar la página | Rueda del mouse |
-| Bloquear un peso de arista | Escribirlo en **Filtros → Bloquear aristas de peso** y tocar **Bloquear peso**; se quita con su ✕ |
 | Cambiar entre dirigido y no dirigido | **Aristas → Tipo de grafo** |
 
 El costo de pasar de `u` a `v` es el peso de la arista en ese sentido.
+
+## Entrega (ejecutable)
+
+1. Compilar en **Release | x64** (el `.exe` de Debug pide DLL de Debug que no se pueden redistribuir).
+2. Copiar **toda** la carpeta `x64\Release` (el `.exe` más las DLL de Qt y la carpeta `platforms` que deja `windeployqt`), no solo el `.exe`.
+3. En una PC sin Visual Studio, instalar el *Visual C++ Redistributable x64* o incluir sus DLL junto al `.exe`.
+4. Probarlo con doble clic en una PC (o máquina virtual) limpia.
+
+Si Qt no está en `C:\Qt\6.8.3\msvc2022_64`, cambiar la ruta en `RutaQt.props`. Si no se encuentra `windeployqt`, la compilación falla con un mensaje.
 
 ## Estructura
 

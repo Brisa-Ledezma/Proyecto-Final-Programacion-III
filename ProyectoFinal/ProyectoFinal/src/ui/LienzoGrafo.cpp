@@ -110,7 +110,7 @@ void LienzoGrafo::setResultado(const grafos::Resultado* resultado, bool animar) 
     const int total = static_cast<int>(camino_.size());
     if (animar && total > 1) {
         pasosVisibles_ = 1;
-        temporizador_->start();
+        iniciarAnimacion();
     } else {
         pasosVisibles_ = total;
     }
@@ -122,6 +122,14 @@ void LienzoGrafo::repetirAnimacion() {
     temporizador_->stop();
     pasosVisibles_ = 1;
     aplicarEstados();
+    iniciarAnimacion();
+}
+
+// Un paso cada 0,5 s, pero un camino largo no tarda más de unos 6 segundos en mostrarse entero.
+void LienzoGrafo::iniciarAnimacion() {
+    const int pasos = static_cast<int>(camino_.size()) - 1;
+    const int espera = pasos <= 12 ? 500 : (6000 / pasos < 100 ? 100 : 6000 / pasos);
+    temporizador_->setInterval(espera);
     temporizador_->start();
 }
 
@@ -214,7 +222,8 @@ void LienzoGrafo::aplicarEstados() {
     recorrer(0, static_cast<int>(aristasCamino_.size()), [&](int i) {
         const int k = aristasCamino_[i];
         if (k < 0 || k >= m || i + 1 >= pasosVisibles_) return;
-        sentido[k] = (grafo_->arista(k).desde == camino_[i]) ? 1 : -1;
+        const int este = (grafo_->arista(k).desde == camino_[i]) ? 1 : -1;
+        sentido[k] = (sentido[k] != 0 && sentido[k] != este) ? 2 : este; // 2 = se recorre en los dos sentidos
     });
 
     std::vector<bool> excluido(n, false);
@@ -379,6 +388,10 @@ QPointF LienzoGrafo::centroVisible() const {
 // ============================================================
 void LienzoGrafo::nodoMoviendose(int indice, QPointF posicion) {
     if (indice < 0 || indice >= grafo_->cantidadNodos()) return;
+    if (arrastrePendiente_) { // primer movimiento: se guarda cómo estaba para poder deshacerlo
+        arrastrePendiente_ = false;
+        if (alEmpezarArrastre) alEmpezarArrastre();
+    }
     grafo_->nodo(indice).x = posicion.x();
     grafo_->nodo(indice).y = posicion.y();
     if (static_cast<int>(aristas_.size()) == grafo_->cantidadAristas()) rutearAristasDe(indice);
@@ -391,6 +404,7 @@ void LienzoGrafo::nodoSoltado(int indice) {
     if (distancia(libre, item->pos()) > 0.5) item->setPos(libre); // dispara nodoMoviendose
     if (static_cast<int>(aristas_.size()) == grafo_->cantidadAristas()) rutearAristas(); // ruteo completo al soltar
     actualizarRectEscena();
+    asegurarVisible(item->pos()); // un nodo soltado fuera de la vista no se pierde
 }
 
 // ============================================================
@@ -401,7 +415,24 @@ void LienzoGrafo::actualizarRectEscena() {
     escena_->setSceneRect(contenido.united(QRectF(0, 0, 900, 520)));
 }
 
-void LienzoGrafo::escalarVista(double factor) { scale(factor, factor); }
+namespace {
+const double ZOOM_MINIMO = 0.2;
+const double ZOOM_MAXIMO = 5.0;
+}
+
+// Multiplica el zoom actual, sin salirse de [ZOOM_MINIMO, ZOOM_MAXIMO]
+void LienzoGrafo::escalarVista(double factor) {
+    const double actual = transform().m11();
+    double nuevo = actual * factor;
+    if (nuevo < ZOOM_MINIMO) nuevo = ZOOM_MINIMO;
+    if (nuevo > ZOOM_MAXIMO) nuevo = ZOOM_MAXIMO;
+    if (actual > 0.0) scale(nuevo / actual, nuevo / actual);
+}
+
+void LienzoGrafo::asegurarVisible(QPointF punto) {
+    const QRectF visible = mapToScene(viewport()->rect()).boundingRect();
+    if (!visible.contains(punto)) centerOn(punto);
+}
 
 void LienzoGrafo::ajustarVista() {
     resetTransform();
@@ -422,25 +453,23 @@ void LienzoGrafo::ajustarVista() {
 //  Mouse
 // ============================================================
 void LienzoGrafo::mousePressEvent(QMouseEvent* evento) {
-    puntoPresionado_ = evento->position().toPoint();
-    const QGraphicsItem* debajo = itemAt(puntoPresionado_);
-    const bool vacio = debajo == nullptr || debajo->type() == QGraphicsSimpleTextItem::Type; // el aviso no cuenta
-    presionEnVacio_ = evento->button() == Qt::LeftButton && vacio;
+    const QGraphicsItem* debajo = itemAt(evento->position().toPoint());
+    arrastrePendiente_ = evento->button() == Qt::LeftButton && debajo != nullptr && debajo->type() == NodoItem::Type;
     QGraphicsView::mousePressEvent(evento);
 }
 
-void LienzoGrafo::mouseReleaseEvent(QMouseEvent* evento) {
-    QGraphicsView::mouseReleaseEvent(evento);
-    const bool fueClic = (evento->position().toPoint() - puntoPresionado_).manhattanLength() < 5;
-    if (presionEnVacio_ && evento->button() == Qt::LeftButton && fueClic && alHacerClicEnVacio)
-        alHacerClicEnVacio(mapToScene(puntoPresionado_));
-    presionEnVacio_ = false;
+// Los nodos se crean con doble clic en el fondo: un clic suelto (por ejemplo al arrastrar la vista) no crea nada.
+void LienzoGrafo::mouseDoubleClickEvent(QMouseEvent* evento) {
+    const QGraphicsItem* debajo = itemAt(evento->position().toPoint());
+    const bool vacio = debajo == nullptr || debajo->type() == QGraphicsSimpleTextItem::Type; // el aviso no cuenta
+    QGraphicsView::mouseDoubleClickEvent(evento);
+    if (vacio && evento->button() == Qt::LeftButton && alHacerClicEnVacio)
+        alHacerClicEnVacio(mapToScene(evento->position().toPoint()));
 }
 
 void LienzoGrafo::wheelEvent(QWheelEvent* evento) {
     if (evento->modifiers() & Qt::ControlModifier) {
-        const double factor = evento->angleDelta().y() > 0 ? 1.15 : 1.0 / 1.15;
-        scale(factor, factor);
+        escalarVista(evento->angleDelta().y() > 0 ? 1.15 : 1.0 / 1.15);
         evento->accept();
         return;
     }
@@ -449,6 +478,7 @@ void LienzoGrafo::wheelEvent(QWheelEvent* evento) {
 }
 
 void LienzoGrafo::contextMenuEvent(QContextMenuEvent* evento) {
+    if (evento->reason() == QContextMenuEvent::Keyboard) return; // la tecla "Menú" no apunta a ningún nodo
     QGraphicsItem* item = itemAt(evento->pos());
     if (item == nullptr) return;
     if (item->type() == NodoItem::Type && alPedirMenuNodo) {

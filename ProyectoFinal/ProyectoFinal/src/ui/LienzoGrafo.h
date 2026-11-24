@@ -34,6 +34,7 @@ public:
     std::function<void(QPointF)> alHacerClicEnVacio;
     std::function<void(int, QPoint)> alPedirMenuNodo;
     std::function<void(int, QPoint)> alPedirMenuArista;
+    std::function<void()> alEmpezarArrastre; // justo antes de que un nodo se mueva por primera vez (para Deshacer)
 
     // ---- estado que muestra ----
     void setFiltros(const grafos::Filtros& filtros);
@@ -51,10 +52,12 @@ public:
     // Posición sin superposición más cercana a "deseada".
     QPointF posicionLibre(QPointF deseada, double radio, int ignorar) const;
     QPointF centroVisible() const;
+    // Desplaza la vista (sin cambiar el zoom) si el punto no está a la vista.
+    void asegurarVisible(QPointF punto);
 
 protected:
     void mousePressEvent(QMouseEvent* evento) override;
-    void mouseReleaseEvent(QMouseEvent* evento) override;
+    void mouseDoubleClickEvent(QMouseEvent* evento) override;
     void wheelEvent(QWheelEvent* evento) override;
     void contextMenuEvent(QContextMenuEvent* evento) override;
 
@@ -74,8 +77,8 @@ private:
     std::vector<int> aristasCamino_;
     int pasosVisibles_ = 0;
 
-    QPoint puntoPresionado_;
-    bool presionEnVacio_ = false;
+    bool arrastrePendiente_ = false; // se apretó un nodo y todavía no se movió
+    void iniciarAnimacion();
 
     void nodoMoviendose(int indice, QPointF posicion);
     void nodoSoltado(int indice);

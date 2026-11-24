@@ -12,8 +12,11 @@
 
 #include <QMainWindow>
 #include <QPointF>
+#include <QTimer>
 #include <vector>
 
+class QCloseEvent;
+class QEvent;
 class QCheckBox;
 class QComboBox;
 class QSpinBox;
@@ -31,9 +34,15 @@ class VentanaPrincipal : public QMainWindow {
 public:
     explicit VentanaPrincipal(QWidget* parent = nullptr);
 
+protected:
+    bool eventFilter(QObject* objeto, QEvent* evento) override; // ignora la repetición automática de Enter
+    void closeEvent(QCloseEvent* evento) override;               // pregunta antes de cerrar con un grafo armado
+
 private:
     grafos::Grafo grafo_;
+    bool quitandoFila_ = false; // evita que un doble clic en "✕" borre dos filas
     bool calculado_ = false; // después del primer cálculo, cada cambio recalcula
+    QTimer* recalculo_ = nullptr; // con grafos grandes junta ráfagas de cambios en un solo recálculo
 
     // Nodos
     QLineEdit* nombreNodo_ = nullptr;
@@ -48,15 +57,8 @@ private:
     QLabel* etiquetaVuelta_ = nullptr;
     QTableWidget* tablaAristas_ = nullptr;
     // Filtros
-    QCheckBox* evitarPares_ = nullptr;
-    QCheckBox* evitarImpares_ = nullptr;
     QCheckBox* evitarAristasPares_ = nullptr;
     QCheckBox* evitarAristasImpares_ = nullptr;
-    QCheckBox* soloPositivos_ = nullptr;
-    QCheckBox* soloNegativos_ = nullptr;
-    QSpinBox* pesoABloquear_ = nullptr;
-    QWidget* listaPesos_ = nullptr;          // un botón por peso bloqueado
-    std::vector<int> pesosBloqueados_;
     // Resolver
     QComboBox* origen_ = nullptr;
     QComboBox* destino_ = nullptr;
@@ -72,6 +74,8 @@ private:
         grafos::Grafo grafo;
         int origen = 0;
         int destino = 0;
+        bool evitarPares = false;   // los filtros también se deshacen
+        bool evitarImpares = false;
     };
     std::vector<Estado> historial_;
     // Derecha
@@ -92,12 +96,13 @@ private:
     void refrescarCombos();
     void refrescarTablaNodos();
     void refrescarTablaAristas();
+    void quitarFilaDiferido(bool esNodo, int fila);
     void cambio();
+    void diferirCalculo();
     void sincronizarTipo();
-    void refrescarPesosBloqueados();
-    void agregarPesoBloqueado();
-    void quitarPesoBloqueado(int peso);
     void limpiarFiltros();
+    void guardarFiltrosYCambiar(bool paresAntes, bool imparesAntes);  // tildar un filtro: se puede deshacer
+    int cantidadObligatorios(int i) const;
     void quitarFiltros();          // botón "Quitar filtros": filtros, pesos, nodos y aristas bloqueados
     void actualizarEstado();       // contador de nodos y línea "Filtros activos"
     void guardarParaDeshacer();    // llamar justo ANTES de modificar el grafo

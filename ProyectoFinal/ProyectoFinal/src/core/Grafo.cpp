@@ -1,7 +1,5 @@
 #include "Grafo.h"
 
-#include <random>
-
 
 namespace grafos {
 
@@ -61,15 +59,13 @@ int Grafo::indiceDe(const std::string& nombre) const {
     return buscarNombre(recortar(nombre), 0);
 }
 
-long Grafo::numeroDeNodo(int indice) const {
-    return static_cast<long>(indice) + 1;
-}
-
 // ------------------------------------------------------------
 //  Nodos
 // ------------------------------------------------------------
 std::string Grafo::validarNombre(const std::string& nombreCrudo) const {
     const std::string nombre = recortar(nombreCrudo);
+    if (cantidadNodos() >= MAXIMO_NODOS)
+        return "Se alcanzó el máximo de " + std::to_string(MAXIMO_NODOS) + " nodos. Borrá alguno para agregar otro.";
     if (nombre.empty()) return "El nombre del nodo no puede estar vacío.";
     if (!soloDigitos(nombre, 0))
         return "El nombre del nodo tiene que ser un número (por ejemplo 1, 7 o 23443).";
@@ -82,13 +78,28 @@ std::string Grafo::validarNombre(const std::string& nombreCrudo) const {
     return "";
 }
 
-std::string Grafo::nombreLibreDesde(int k) const {
-    const std::string candidato = nombreAutomatico(k);
-    if (indiceDe(candidato) == -1) return candidato;
-    return nombreLibreDesde(k + 1);
+// Un solo recorrido de los nodos marca qué números del 1 al n+1 están usados; antes se buscaba cada
+// candidato nombre por nombre, y agregar nodos costaba cada vez más (n² por nodo nuevo).
+void Grafo::marcarUsados(int i, std::vector<bool>& usado) const {
+    if (i >= cantidadNodos()) return;
+    const std::string& nombre = nodos_[i].nombre;
+    if (!nombre.empty() && nombre.size() <= 9 && soloDigitos(nombre, 0)) { // los nombres tienen como mucho 6 cifras
+        const long valor = std::stol(nombre);
+        if (valor >= 1 && valor <= static_cast<long>(usado.size())) usado[valor - 1] = true;
+    }
+    marcarUsados(i + 1, usado);
 }
 
-std::string Grafo::siguienteNombreLibre() const { return nombreLibreDesde(0); }
+int Grafo::primerLibre(const std::vector<bool>& usado, int k) const {
+    if (k >= static_cast<int>(usado.size()) || !usado[k]) return k;
+    return primerLibre(usado, k + 1);
+}
+
+std::string Grafo::siguienteNombreLibre() const {
+    std::vector<bool> usado(static_cast<size_t>(cantidadNodos()) + 1, false);
+    marcarUsados(0, usado);
+    return nombreAutomatico(primerLibre(usado, 0));
+}
 
 int Grafo::agregarNodo(const std::string& nombre, double x, double y) {
     Nodo n;
@@ -151,12 +162,14 @@ std::string Grafo::validarArista(int desde, int hasta, bool dirigida) const {
     if (desde < 0 || hasta < 0 || desde >= cantidadNodos() || hasta >= cantidadNodos())
         return "Elegí los dos nodos de la arista.";
     if (desde == hasta) return "Elegí dos nodos distintos.";
+    if (cantidadAristas() >= MAXIMO_ARISTAS)
+        return "Se alcanzó el máximo de " + std::to_string(MAXIMO_ARISTAS) + " aristas. Borrá alguna para agregar otra.";
     const std::string a = nodos_[desde].nombre;
     const std::string b = nodos_[hasta].nombre;
     if (buscarArco(desde, hasta, 0) != -1)
         return "Ya existe una arista de " + a + " a " + b + ".";
     if (!dirigida && buscarArco(hasta, desde, 0) != -1)
-        return "Ya existe una arista de " + b + " a " + a + ". Borrala o creá esta como dirigida.";
+        return "Ya existe una arista de " + b + " a " + a + ". En un grafo no dirigido esa arista ya sirve para los dos sentidos.";
     return "";
 }
 
@@ -202,6 +215,26 @@ void Grafo::juntarOpuestas(int k) {
     juntarOpuestas(k + 1);
 }
 
+int Grafo::contarPerdidasADirigido(int k) const {
+    if (k >= cantidadAristas()) return 0;
+    const int pierde = (!aristas_[k].dirigida && aristas_[k].pesoVuelta != aristas_[k].pesoIda) ? 1 : 0;
+    return pierde + contarPerdidasADirigido(k + 1);
+}
+
+// Cada par A→B / B→A se junta en una sola arista. Los pesos se conservan (ida y vuelta); lo que se
+// pierde es el bloqueo si solo una de las dos estaba bloqueada.
+int Grafo::contarPerdidasANoDirigido(int k) const {
+    if (k >= cantidadAristas()) return 0;
+    const int j = buscarOpuesta(k, k + 1);
+    const int pierde = (j != -1 && aristas_[k].bloqueada != aristas_[j].bloqueada) ? 1 : 0;
+    return pierde + contarPerdidasANoDirigido(k + 1);
+}
+
+int Grafo::aristasQuePierdenDatos(bool haciaDirigido) const {
+    if (haciaDirigido == dirigido_) return 0;
+    return haciaDirigido ? contarPerdidasADirigido(0) : contarPerdidasANoDirigido(0);
+}
+
 void Grafo::setDirigido(bool valor) {
     if (valor == dirigido_) return;
     dirigido_ = valor;
@@ -240,22 +273,18 @@ void Grafo::cargarEjemplo(int& origenSugerido, int& destinoSugerido) {
     agregarNodo("6", 630, 170);
     agregarNodo("7", 790, 300);
 
-    // Pesos al azar (1 a 9) cada vez que se carga el ejemplo; ida y vuelta se sortean por separado
-    static std::mt19937 azar{std::random_device{}()};
-    std::uniform_int_distribution<int> sorteo(1, 9);
-    const auto peso = [&]() { return sorteo(azar); };
-
+    // Pesos fijos: el mismo ejemplo da siempre el mismo resultado (se puede repetir y comparar)
     //            desde hasta ida vuelta dirigida (el ejemplo es no dirigido)
-    agregarArista(0, 1, peso(), peso(), false); // 1 — 2
-    agregarArista(0, 2, peso(), peso(), false); // 1 — 3
-    agregarArista(1, 2, peso(), peso(), false); // 2 — 3
-    agregarArista(1, 3, peso(), peso(), false); // 2 — 4
-    agregarArista(2, 4, peso(), peso(), false); // 3 — 5
-    agregarArista(3, 4, peso(), peso(), false); // 4 — 5
-    agregarArista(3, 5, peso(), peso(), false); // 4 — 6
-    agregarArista(4, 5, peso(), peso(), false); // 5 — 6
-    agregarArista(5, 6, peso(), peso(), false); // 6 — 7
-    agregarArista(4, 6, peso(), peso(), false); // 5 — 7
+    agregarArista(0, 1, 4, 4, false); // 1 — 2
+    agregarArista(0, 2, 2, 3, false); // 1 — 3
+    agregarArista(1, 2, 1, 1, false); // 2 — 3
+    agregarArista(1, 3, 5, 6, false); // 2 — 4
+    agregarArista(2, 4, 7, 7, false); // 3 — 5
+    agregarArista(3, 4, 2, 2, false); // 4 — 5
+    agregarArista(3, 5, 3, 4, false); // 4 — 6
+    agregarArista(4, 5, 6, 5, false); // 5 — 6
+    agregarArista(5, 6, 2, 2, false); // 6 — 7
+    agregarArista(4, 6, 9, 8, false); // 5 — 7
 
     origenSugerido = 0;  // 1
     destinoSugerido = 6; // 7

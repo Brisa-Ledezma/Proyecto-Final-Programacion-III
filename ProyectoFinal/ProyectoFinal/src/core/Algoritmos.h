@@ -21,20 +21,14 @@ const double INFINITO = std::numeric_limits<double>::infinity();
 enum class Algoritmo { Dijkstra, BellmanFord, MatrizAdyacencia };
 
 struct Filtros {
-    bool evitarPares = false;   // excluye los nodos n.º 2, 4, 6 ... (posición del nodo, no su nombre)
-    bool evitarImpares = false; // excluye los nodos 1, 3, 5 ...
-    // Pesos bloqueados: no se usa ningún sentido de arista que pese esto.
-    // En una no dirigida con ida 4 y vuelta 2, bloquear el 4 corta solo la ida.
-    std::vector<int> pesosBloqueados;
-    bool evitarAristasPares = false;   // corta los sentidos de arista con peso par (0, 2, -4 ...)
-    bool evitarAristasImpares = false; // corta los sentidos de arista con peso impar (1, 3, -5 ...)
-    // Signo del peso (excluyentes entre sí). El 0 no es ni positivo ni negativo: con cualquiera
-    // de los dos filtros activos, un sentido de arista con peso 0 queda cortado.
-    bool soloPositivos = false; // solo se usan sentidos de arista con peso > 0
-    bool soloNegativos = false; // solo se usan sentidos de arista con peso < 0
+    // Aristas por paridad del peso: cortan cada sentido de arista que pesa par (0, 2, -4 ...) o impar (1, 3, -5 ...).
+    // En una no dirigida con ida 4 y vuelta 3, evitar pares corta solo la ida.
+    bool evitarAristasPares = false;
+    bool evitarAristasImpares = false;
+    // Un nodo específico se evita bloqueándolo (Nodo::bloqueado), no con un filtro de este struct.
 };
 
-// ¿Un sentido de arista con ese peso queda cortado (lista de pesos o paridad)?
+// ¿Un sentido de arista con ese peso queda cortado por la paridad?
 bool pesoBloqueado(const Filtros& f, int peso);
 
 // Arco = una dirección concreta de una arista (u -> v) ya con su costo.
@@ -58,6 +52,7 @@ struct Resultado {
     std::vector<double> distDesdeOrigen;
     std::vector<bool> excluido;       // nodos sacados por bloqueo o filtro
     int sentidosPorPeso = 0;          // sentidos de arista cortados por un peso bloqueado
+    std::string aviso;                // algo que conviene saber aunque el camino se haya encontrado
 
     // Se arma con cualquier algoritmo
     std::vector<std::vector<double>> matrizAdyacencia;
@@ -65,7 +60,13 @@ struct Resultado {
 
 const int MAXIMO_OBLIGATORIOS = 8;
 
-// ¿El nodo queda afuera por bloqueo o por el filtro par/impar?
+// La matriz de adyacencia se arma con cualquier algoritmo mientras el grafo no pase del máximo de nodos
+// (con el máximo son 150 × 150 celdas).
+const int MAXIMO_NODOS_EN_MATRIZ = Grafo::MAXIMO_NODOS; // la matriz se muestra siempre
+// La matriz de adyacencia como algoritmo es cúbica (n³): más allá de esto se pide otro algoritmo.
+const int MAXIMO_NODOS_ALGORITMO_MATRIZ = 300;
+
+// ¿El nodo queda afuera porque está bloqueado?
 bool nodoExcluido(const Grafo& g, int indice, const Filtros& f);
 
 // "" si el nodo puede usarse; si no, el motivo (empezando por `quien`).

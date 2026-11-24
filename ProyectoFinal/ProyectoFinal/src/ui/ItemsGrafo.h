@@ -82,7 +82,7 @@ public:
     int indice() const { return indice_; }
 
     void setGeometria(const QPainterPath& curva, const QPolygonF& flechaFinal, const QPolygonF& flechaInicial);
-    // sentidoCamino: 0 = no está en el camino, 1 = se recorre desde->hasta, -1 = al revés
+    // sentidoCamino: 0 = no está en el camino, 1 = se recorre desde->hasta, -1 = al revés, 2 = en los dos sentidos
     void setEstado(bool dirigida, bool bloqueada, bool excluida, int sentidoCamino);
 
     QRectF boundingRect() const override;

@@ -13,15 +13,23 @@
 #include <QPalette>
 #include <QPen>
 #include <QPixmap>
+#include <QScreen>
 #include <QStyleFactory>
 
 namespace {
 
-// Dibuja los íconos del tema y los guarda en una carpeta temporal para la hoja de estilo.
-QString prepararIconos() {
-    const QString carpeta = QDir::tempPath() + QStringLiteral("/caminos-en-grafos-iconos");
-    QDir().mkpath(carpeta);
+// Prueba cada carpeta candidata (en orden) hasta que se pueden guardar los dos íconos.
+QString guardarIconos(const QStringList& carpetas, int i, const QPixmap& tilde, const QPixmap& flecha) {
+    if (i >= static_cast<int>(carpetas.size())) return carpetas.value(0);
+    QDir().mkpath(carpetas[i]);
+    if (tilde.save(carpetas[i] + QStringLiteral("/check.png")) && flecha.save(carpetas[i] + QStringLiteral("/flecha.png")))
+        return carpetas[i];
+    return guardarIconos(carpetas, i + 1, tilde, flecha);
+}
 
+// Dibuja los íconos del tema y los guarda en una carpeta para la hoja de estilo. Si no se puede escribir en la
+// carpeta temporal, prueba con una carpeta oculta del usuario (sin los íconos, las casillas se verían sin tilde).
+QString prepararIconos() {
     QPixmap tilde(36, 36); // doble resolución: se ve nítido en pantallas con escala
     tilde.fill(Qt::transparent);
     {
@@ -31,8 +39,6 @@ QString prepararIconos() {
         const QPointF puntos[3] = {QPointF(9, 19), QPointF(15, 25), QPointF(27, 11)};
         p.drawPolyline(puntos, 3);
     }
-    tilde.save(carpeta + QStringLiteral("/check.png"));
-
     QPixmap flecha(20, 12);
     flecha.fill(Qt::transparent);
     {
@@ -42,8 +48,8 @@ QString prepararIconos() {
         const QPointF puntos[3] = {QPointF(3, 3), QPointF(10, 9), QPointF(17, 3)};
         p.drawPolyline(puntos, 3);
     }
-    flecha.save(carpeta + QStringLiteral("/flecha.png"));
-    return carpeta;
+    return guardarIconos({QDir::tempPath() + QStringLiteral("/caminos-en-grafos-iconos"),
+                          QDir::homePath() + QStringLiteral("/.caminos-en-grafos-iconos")}, 0, tilde, flecha);
 }
 
 QPalette paletaOscura() {
@@ -80,7 +86,9 @@ int main(int argc, char* argv[]) {
     aplicacion.setStyleSheet(tema::hojaDeEstilo(iconos, tema::ESCALA_INICIAL));
 
     VentanaPrincipal ventana;
-    ventana.resize(1440, 900);
+    // 1440 × 900 si entra; en pantallas más chicas (por ejemplo 1366 × 768) se ajusta al área disponible
+    const QRect pantalla = aplicacion.primaryScreen()->availableGeometry();
+    ventana.resize(qMin(1440, pantalla.width()), qMin(900, pantalla.height()));
     ventana.show();
     return aplicacion.exec();
 }

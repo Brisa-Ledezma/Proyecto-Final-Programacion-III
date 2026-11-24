@@ -69,16 +69,11 @@ void armarArcos(const Grafo& g, const std::vector<bool>& excl, const Filtros& f,
     armarArcos(g, excl, f, k + 1, ady, plano, cortadosPorPeso);
 }
 
-bool pesoEnLista(const std::vector<int>& lista, int peso, size_t k) {
-    if (k >= lista.size()) return false;
-    if (lista[k] == peso) return true;
-    return pesoEnLista(lista, peso, k + 1);
-}
-
-bool hayCostoNegativo(const std::vector<ArcoPlano>& plano, size_t k) {
-    if (k >= plano.size()) return false;
-    if (plano[k].costo < 0) return true;
-    return hayCostoNegativo(plano, k + 1);
+// Posición del primer arco de costo negativo, o -1.
+int primerCostoNegativo(const std::vector<ArcoPlano>& plano, size_t k) {
+    if (k >= plano.size()) return -1;
+    if (plano[k].costo < 0) return static_cast<int>(k);
+    return primerCostoNegativo(plano, k + 1);
 }
 
 // ============================================================
@@ -145,17 +140,32 @@ void iterarBellman(const std::vector<ArcoPlano>& arcos, int iteracion, int n, Ar
     iterarBellman(arcos, iteracion + 1, n, t);
 }
 
-bool quedaMejora(const std::vector<ArcoPlano>& arcos, size_t k, const Arbol& t) {
-    if (k >= arcos.size()) return false;
+// Marca los nodos con distancia "-infinito": los que se alcanzan desde un ciclo negativo.
+// Un ciclo negativo solo impide el camino mínimo si alguno de los nodos que se buscan queda marcado.
+bool propagarIlimitados(const std::vector<ArcoPlano>& arcos, size_t k, const Arbol& t,
+                        std::vector<bool>& ilimitado, bool huboCambio) {
+    if (k >= arcos.size()) return huboCambio;
     const ArcoPlano& a = arcos[k];
-    if (t.dist[a.desde] < INFINITO && t.dist[a.desde] + a.costo < t.dist[a.hacia]) return true;
-    return quedaMejora(arcos, k + 1, t);
+    if (t.dist[a.desde] < INFINITO && !ilimitado[a.hacia] &&
+        (ilimitado[a.desde] || t.dist[a.desde] + a.costo < t.dist[a.hacia])) {
+        ilimitado[a.hacia] = true;
+        huboCambio = true;
+    }
+    return propagarIlimitados(arcos, k + 1, t, ilimitado, huboCambio);
 }
 
-Arbol bellmanFord(const std::vector<ArcoPlano>& arcos, int n, int fuente, bool& cicloNegativo) {
+void repetirPropagacion(const std::vector<ArcoPlano>& arcos, int iteracion, int n, const Arbol& t,
+                        std::vector<bool>& ilimitado) {
+    if (iteracion >= n) return;
+    if (!propagarIlimitados(arcos, 0, t, ilimitado, false)) return;
+    repetirPropagacion(arcos, iteracion + 1, n, t, ilimitado);
+}
+
+Arbol bellmanFord(const std::vector<ArcoPlano>& arcos, int n, int fuente, std::vector<bool>& ilimitado) {
     Arbol t = arbolVacio(n, fuente);
     iterarBellman(arcos, 0, n, t);
-    cicloNegativo = quedaMejora(arcos, 0, t);
+    ilimitado = std::vector<bool>(n, false);
+    repetirPropagacion(arcos, 0, n, t, ilimitado);
     return t;
 }
 
@@ -196,10 +206,11 @@ void matrizK(int k, int n, Matriz& D, MatrizInt& P) {
     matrizK(k + 1, n, D, P);
 }
 
-bool diagonalNegativa(const Matriz& D, int i) {
-    if (i >= static_cast<int>(D.size())) return false;
-    if (D[i][i] < 0) return true;
-    return diagonalNegativa(D, i + 1);
+// ¿Hay un ciclo negativo por el que se pueda pasar yendo de s a t?
+bool cicloAfecta(const Matriz& D, int s, int t, int k) {
+    if (k >= static_cast<int>(D.size())) return false;
+    if (D[k][k] < 0 && D[s][k] < INFINITO && D[k][t] < INFINITO) return true;
+    return cicloAfecta(D, s, t, k + 1);
 }
 
 Arbol arbolDesdeMatriz(const Matriz& D, const MatrizInt& P, int fuente) {
@@ -296,37 +307,24 @@ Resultado conError(Resultado r, const std::string& mensaje) {
 std::string nombreAlgoritmo(Algoritmo alg) {
     if (alg == Algoritmo::Dijkstra) return "Dijkstra";
     if (alg == Algoritmo::BellmanFord) return "Bellman-Ford";
-    return "Matriz de adyacencia";
+    return "Matriz de adyacencia (Floyd-Warshall)";
 }
 
 bool pesoBloqueado(const Filtros& f, int peso) {
     if (f.evitarAristasPares && peso % 2 == 0) return true;
     if (f.evitarAristasImpares && peso % 2 != 0) return true;
-    if (f.soloPositivos && peso <= 0) return true;
-    if (f.soloNegativos && peso >= 0) return true;
-    return pesoEnLista(f.pesosBloqueados, peso, 0);
-}
-
-// Misma regla que motivoExclusion, pero sin armar textos: se llama por cada nodo en cada repintado.
-bool nodoExcluido(const Grafo& g, int indice, const Filtros& f) {
-    if (g.nodo(indice).bloqueado) return true;
-    const long numero = g.numeroDeNodo(indice);
-    if (f.evitarPares && numero % 2 == 0) return true;
-    if (f.evitarImpares && numero % 2 != 0) return true;
     return false;
 }
 
-std::string motivoExclusion(const Grafo& g, int indice, const Filtros& f, const std::string& quien) {
+// Un nodo queda afuera solo si está bloqueado.
+bool nodoExcluido(const Grafo& g, int indice, const Filtros&) {
+    return g.nodo(indice).bloqueado;
+}
+
+std::string motivoExclusion(const Grafo& g, int indice, const Filtros&, const std::string& quien) {
     const Nodo& n = g.nodo(indice);
-    const long numero = g.numeroDeNodo(indice);
-    const std::string nombre = quien + (quien.empty() ? "" : " ") + comillas(n.nombre) +
-                               " (nodo n.º " + std::to_string(numero) + ")";
-    if (n.bloqueado) return nombre + " está bloqueado.";
-    if (f.evitarPares && numero % 2 == 0)
-        return nombre + " es par y está activo el filtro \"Evitar nodos pares\".";
-    if (f.evitarImpares && numero % 2 != 0)
-        return nombre + " es impar y está activo el filtro \"Evitar nodos impares\".";
-    return "";
+    if (!n.bloqueado) return "";
+    return quien + (quien.empty() ? "" : " ") + comillas(n.nombre) + " está bloqueado.";
 }
 
 Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const Filtros& f) {
@@ -340,8 +338,6 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
     if (n == 0) return conError(r, "El grafo está vacío. Agregá nodos o cargá el ejemplo.");
     if (f.evitarAristasPares && f.evitarAristasImpares)
         return conError(r, "Evitar aristas pares e impares a la vez corta todas las aristas. Dejá tildada solo una.");
-    if (f.soloPositivos && f.soloNegativos)
-        return conError(r, "Solo positivos y solo negativos a la vez corta todas las aristas. Dejá tildada solo una.");
     if (origen < 0 || destino < 0 || origen >= n || destino >= n)
         return conError(r, "Elegí un origen y un destino.");
 
@@ -362,6 +358,10 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
         obligatorios.push_back(i);
     });
     if (!motivoObligatorio.empty()) return conError(r, motivoObligatorio);
+    if (origen == destino && obligatorios.empty())
+        return conError(r, "El origen y el destino son el mismo nodo (el costo es 0). Elegí dos nodos distintos.");
+    if (g.nodo(origen).obligatorio || g.nodo(destino).obligatorio)
+        r.aviso = "El origen y el destino ya forman parte del camino: marcarlos como obligatorios no cambia nada.";
     if (static_cast<int>(obligatorios.size()) > MAXIMO_OBLIGATORIOS)
         return conError(r, "Hay más de " + std::to_string(MAXIMO_OBLIGATORIOS) +
                                " nodos obligatorios; probar todos los órdenes sería demasiado lento.");
@@ -370,24 +370,30 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
     ListaAdyacencia ady(n);
     std::vector<ArcoPlano> plano;
     armarArcos(g, r.excluido, f, 0, ady, plano, r.sentidosPorPeso);
-    const bool negativos = hayCostoNegativo(plano, 0);
+    const int negativo = primerCostoNegativo(plano, 0);
+    const bool negativos = negativo >= 0;
 
     if (alg == Algoritmo::Dijkstra && negativos)
-        return conError(r, "Dijkstra no admite pesos negativos (hay una arista con peso negativo). "
-                           "Probá con Bellman-Ford o con la matriz de adyacencia.");
+        return conError(r, "Dijkstra no admite pesos negativos: el camino " + comillas(g.nodo(plano[negativo].desde).nombre) +
+                               " → " + comillas(g.nodo(plano[negativo].hacia).nombre) + " pesa " +
+                               std::to_string(static_cast<long long>(plano[negativo].costo)) +
+                               ". Probá con Bellman-Ford o con la matriz de adyacencia.");
 
-    // ---------- matriz de adyacencia: se arma siempre, con cualquier algoritmo ----------
-    Matriz D(n, std::vector<double>(n, INFINITO));
-    MatrizInt P(n, std::vector<int>(n, -1));
-    recorrer(0, n, [&](int i) { D[i][i] = 0.0; });
-    cargarArcoEnMatriz(plano, 0, D, P);
-    r.matrizAdyacencia = D;
-
-    // ---------- matriz de adyacencia: se itera la misma matriz una sola vez ----------
-    if (alg == Algoritmo::MatrizAdyacencia) {
-        matrizK(0, n, D, P);
-        if (diagonalNegativa(D, 0))
-            return conError(r, "Hay un ciclo de peso negativo: no existe camino mínimo.");
+    // ---------- matriz de adyacencia: solo si se muestra o si es el algoritmo elegido ----------
+    const bool esMatriz = (alg == Algoritmo::MatrizAdyacencia);
+    if (esMatriz && n > MAXIMO_NODOS_ALGORITMO_MATRIZ)
+        return conError(r, "La matriz de adyacencia como algoritmo tiene un costo cúbico: con " + std::to_string(n) +
+                               " nodos tardaría demasiado. Usá Dijkstra o Bellman-Ford (hasta " +
+                               std::to_string(MAXIMO_NODOS_ALGORITMO_MATRIZ) + " nodos con esta opción).");
+    Matriz D;
+    MatrizInt P;
+    if (esMatriz || n <= MAXIMO_NODOS_EN_MATRIZ) {
+        D = Matriz(n, std::vector<double>(n, INFINITO));
+        P = MatrizInt(n, std::vector<int>(n, -1));
+        recorrer(0, n, [&](int i) { D[i][i] = 0.0; });
+        cargarArcoEnMatriz(plano, 0, D, P);
+        if (n <= MAXIMO_NODOS_EN_MATRIZ) r.matrizAdyacencia = D;
+        if (esMatriz) matrizK(0, n, D, P); // se itera la misma matriz una sola vez
     }
 
     // ---------- un árbol por cada fuente (origen y obligatorios) ----------
@@ -397,21 +403,33 @@ Resultado resolver(const Grafo& g, int origen, int destino, Algoritmo alg, const
 
     std::vector<Arbol> arboles;
     std::vector<int> arbolDe(n, -1);
+    // Nodos que se buscan desde cada fuente: el destino y los obligatorios
+    std::vector<int> metas = obligatorios;
+    metas.push_back(destino);
     std::string errorCiclo;
     recorrer(0, static_cast<int>(fuentes.size()), [&](int i) {
         if (!errorCiclo.empty()) return;
         const int s = fuentes[i];
         arbolDe[s] = static_cast<int>(arboles.size());
+        const std::string textoCiclo = "Hay un ciclo de peso negativo que afecta al camino desde " +
+                                       comillas(g.nodo(s).nombre) + ": no existe camino mínimo." +
+                                       (g.dirigido() ? std::string()
+                                                     : std::string(" En un grafo no dirigido, una arista con ida y vuelta "
+                                                                   "negativas forma un ciclo negativo (A → B → A)."));
         if (alg == Algoritmo::Dijkstra) {
             arboles.push_back(dijkstra(ady, s));
         } else if (alg == Algoritmo::BellmanFord) {
-            bool ciclo = false;
-            arboles.push_back(bellmanFord(plano, n, s, ciclo));
-            if (ciclo)
-                errorCiclo = "Hay un ciclo de peso negativo alcanzable desde " + comillas(g.nodo(s).nombre) +
-                             ": no existe camino mínimo.";
+            std::vector<bool> ilimitado;
+            arboles.push_back(bellmanFord(plano, n, s, ilimitado));
+            // Un ciclo negativo que no lleva a ninguno de los nodos buscados no impide el camino mínimo
+            recorrer(0, static_cast<int>(metas.size()), [&](int j) {
+                if (ilimitado[metas[j]]) errorCiclo = textoCiclo;
+            });
         } else {
             arboles.push_back(arbolDesdeMatriz(D, P, s));
+            recorrer(0, static_cast<int>(metas.size()), [&](int j) {
+                if (cicloAfecta(D, s, metas[j], 0)) errorCiclo = textoCiclo;
+            });
         }
     });
     if (!errorCiclo.empty()) return conError(r, errorCiclo);

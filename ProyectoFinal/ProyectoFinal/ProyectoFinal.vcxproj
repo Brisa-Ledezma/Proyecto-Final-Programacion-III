@@ -69,7 +69,8 @@
       <StackReserveSize>268435456</StackReserveSize>
     </Link>
     <PostBuildEvent>
-      <Command>if exist "$(QtDir)\bin\windeployqt.exe" "$(QtDir)\bin\windeployqt.exe" --no-translations "$(TargetPath)"</Command>
+      <Command>if not exist "$(QtDir)\bin\windeployqt.exe" (echo ERROR: no se encontro windeployqt.exe en $(QtDir)\bin - revisar la ruta de Qt en RutaQt.props 1&gt;&amp;2 &amp; exit /b 1)
+"$(QtDir)\bin\windeployqt.exe" --no-translations "$(TargetPath)"</Command>
       <Message>Copiando las DLL de Qt junto al ejecutable</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -98,7 +99,8 @@
       <StackReserveSize>268435456</StackReserveSize>
     </Link>
     <PostBuildEvent>
-      <Command>if exist "$(QtDir)\bin\windeployqt.exe" "$(QtDir)\bin\windeployqt.exe" --no-translations "$(TargetPath)"</Command>
+      <Command>if not exist "$(QtDir)\bin\windeployqt.exe" (echo ERROR: no se encontro windeployqt.exe en $(QtDir)\bin - revisar la ruta de Qt en RutaQt.props 1&gt;&amp;2 &amp; exit /b 1)
+"$(QtDir)\bin\windeployqt.exe" --no-translations "$(TargetPath)"</Command>
       <Message>Copiando las DLL de Qt junto al ejecutable</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
